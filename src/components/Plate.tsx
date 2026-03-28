@@ -1,3 +1,5 @@
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, withTiming, withSpring, withRepeat, withSequence } from 'react-native-reanimated';
 import { THEME } from '../constants/theme';
 import { Color, Hole } from '../types/game';
@@ -23,7 +25,7 @@ export const Plate: React.FC<PlateProps> = ({ holes, color, zIndex, isRemoved, a
       transform: [
         { translateY: withSpring(isRemoved ? 1000 : 0) },
         { rotate: isRemoved ? withSpring('45deg') : withSpring(`${wobble}deg`) },
-      ],
+      ] as any,
     };
   });
 

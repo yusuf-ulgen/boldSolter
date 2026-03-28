@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Bolt Sorter",
+    "slug": "bolt-sorter",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+    },
+    "web": {
+    }
+  }
+}

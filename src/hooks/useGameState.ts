@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { GameState, Color, Screw, Plate, Hole } from '../types/game';
 import * as Haptics from 'expo-haptics';
+import { THEME } from '../constants/theme';
 
 const INITIAL_STATE: GameState = {
   holes: {
@@ -107,24 +108,21 @@ export const useGameState = () => {
   }, [showInsult]);
 
   const handleHolePress = useCallback((holeId: string) => {
-    setState(prev => {
-      const hole = prev.holes[holeId];
-      
-      if (hole.screwId) {
-        // Selection
-        selectScrew(hole.screwId);
-        return prev;
-      } else if (prev.selectedScrewId) {
-        // Moving
-        moveScrewToHole(prev.selectedScrewId, holeId);
-        return prev;
-      }
-      return prev;
-    });
-  }, [selectScrew, moveScrewToHole]);
+    const hole = state.holes[holeId];
+    
+    if (hole.screwId) {
+      // Selection
+      selectScrew(hole.screwId);
+    } else if (state.selectedScrewId) {
+      // Moving
+      moveScrewToHole(state.selectedScrewId, holeId);
+    }
+  }, [state.holes, state.selectedScrewId, selectScrew, moveScrewToHole]);
 
   return {
     state,
     handleHolePress,
+    undo,
+    showTrollHint,
   };
 };
