@@ -1,63 +1,81 @@
-import { useState, useCallback } from 'react';
-import { GameState, Color, Screw, Plate, Hole } from '../types/game';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { GameState, Screw, Plate, Hole } from '../types/game';
 import * as Haptics from 'expo-haptics';
 import { THEME } from '../constants/theme';
+import { generateLevel } from '../utils/levelGenerator';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const INITIAL_STATE: GameState = {
-  holes: {
-    'h1': { id: 'h1', x: 100, y: 100, screwId: 's1' },
-    'h2': { id: 'h2', x: 200, y: 100, screwId: 's2' },
-    'h3': { id: 'h3', x: 100, y: 250 },
-    'h4': { id: 'h4', x: 200, y: 250, screwId: 's3' },
-    'h5': { id: 'h5', x: 150, y: 400 },
-  },
-  screws: {
-    's1': { id: 's1', color: 'red', holeId: 'h1' },
-    's2': { id: 's2', color: 'blue', holeId: 'h2', isMystery: true },
-    's3': { id: 's3', color: 'red', holeId: 'h4' },
-  },
-  plates: {
-    'p1': { id: 'p1', color: 'red', holeIds: ['h1', 'h4'], zIndex: 1, isRemoved: false },
-    'p2': { id: 'p2', color: 'blue', holeIds: ['h2'], zIndex: 2, isRemoved: false },
-  },
-  moves: 0,
-  history: [],
-};
+const STORAGE_KEY = '@bolt_sorter_level';
 
 export const useGameState = () => {
-  const [state, setState] = useState<GameState>(INITIAL_STATE);
+  const [state, setState] = useState<GameState>(generateLevel(1));
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const showInsult = useCallback(() => {
-    const randomInsult = THEME.bait.insults[Math.floor(Math.random() * THEME.bait.insults.length)];
-    setState(prev => ({ ...prev, insultMessage: randomInsult }));
+  // Load progress on mount
+  useEffect(() => {
+    const loadProgress = async () => {
+      try {
+        const savedLevel = await AsyncStorage.getItem(STORAGE_KEY);
+        if (savedLevel) {
+          const levelIndex = parseInt(savedLevel);
+          setState(generateLevel(levelIndex));
+        }
+      } catch (e) {
+        console.error("Failed to load level progress", e);
+      }
+    };
+    loadProgress();
   }, []);
+
+  // Timer logic
+  useEffect(() => {
+    if (state.isGameOver || state.isLevelComplete) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+
+    timerRef.current = setInterval(() => {
+      setState(prev => {
+        if (prev.timeLeft <= 1) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          return { ...prev, timeLeft: 0, isGameOver: true, insultMessage: "Süren doldu kaplumbağa! 🐢" };
+        }
+        return { ...prev, timeLeft: prev.timeLeft - 1 };
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [state.isGameOver, state.isLevelComplete]);
+
+  const saveProgress = async (levelIndex: number) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, levelIndex.toString());
+    } catch (e) {
+      console.error("Failed to save progress", e);
+    }
+  };
+
+  const nextLevel = useCallback(() => {
+    const nextIdx = state.levelIndex + 1;
+    setState(generateLevel(nextIdx));
+    saveProgress(nextIdx);
+  }, [state.levelIndex]);
+
+  const retryLevel = useCallback(() => {
+    setState(generateLevel(state.levelIndex));
+  }, [state.levelIndex]);
 
   const selectScrew = useCallback((screwId: string) => {
+    if (state.isGameOver || state.isLevelComplete) return;
     setState(prev => ({ ...prev, selectedScrewId: screwId, insultMessage: undefined }));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, []);
-
-  const undo = useCallback(() => {
-    setState(prev => {
-      if (prev.history.length === 0) return { ...prev, insultMessage: "Neyi geri alacaksın? Hafızan mı silindi? 🧠" };
-      const lastStateStr = prev.history[prev.history.length - 1];
-      const lastState = JSON.parse(lastStateStr);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      return { 
-        ...lastState, 
-        insultMessage: "Korkak gibi geri mi dönüyorsun? 😂",
-        history: prev.history.slice(0, -1)
-      };
-    });
-  }, []);
-
-  const showTrollHint = useCallback(() => {
-    const randomHint = THEME.bait.trollHints[Math.floor(Math.random() * THEME.bait.trollHints.length)];
-    setState(prev => ({ ...prev, insultMessage: randomHint, isTrollHintActive: true }));
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-  }, []);
+  }, [state.isGameOver, state.isLevelComplete]);
 
   const moveScrewToHole = useCallback((screwId: string, holeId: string) => {
+    if (state.isGameOver || state.isLevelComplete) return;
+
     setState(prev => {
       const screw = prev.screws[screwId];
       const targetHole = prev.holes[holeId];
@@ -75,7 +93,7 @@ export const useGameState = () => {
 
       const newScrews = {
         ...prev.screws,
-        [screwId]: { ...screw, holeId: holeId, isMystery: false }, // Reveal on move
+        [screwId]: { ...screw, holeId: holeId, isMystery: false }, 
       };
 
       const newPlates = { ...prev.plates };
@@ -88,11 +106,13 @@ export const useGameState = () => {
         }
       });
 
-      // Save history for undo
-      const stateToSave = { ...prev, history: [] }; // Don't save recursive history
-      const newHistory = [...prev.history, JSON.stringify(stateToSave)].slice(-5); // Keep last 5 moves
+      const isWin = Object.values(newPlates).every(p => p.isRemoved);
+      if (isWin) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
 
-      if (prev.moves % 10 === 0 && prev.moves > 0) showInsult();
+      const stateToSave = { ...prev, history: [] };
+      const newHistory = [...prev.history, JSON.stringify(stateToSave)].slice(-5);
 
       return {
         ...prev,
@@ -102,19 +122,30 @@ export const useGameState = () => {
         selectedScrewId: undefined,
         moves: prev.moves + 1,
         history: newHistory,
-        isTrollHintActive: false,
+        isLevelComplete: isWin,
       };
     });
-  }, [showInsult]);
+  }, [state.isGameOver, state.isLevelComplete]);
+
+  const undo = useCallback(() => {
+    if (state.isGameOver || state.isLevelComplete) return;
+    setState(prev => {
+      if (prev.history.length === 0) return { ...prev, insultMessage: "Neyi geri alacaksın? Hafızan mı silindi? 🧠" };
+      const lastStateStr = prev.history[prev.history.length - 1];
+      const lastState = JSON.parse(lastStateStr);
+      return { 
+        ...lastState, 
+        insultMessage: "Korkak gibi geri mi dönüyorsun? 😂",
+        history: prev.history.slice(0, -1)
+      };
+    });
+  }, [state.isGameOver, state.isLevelComplete]);
 
   const handleHolePress = useCallback((holeId: string) => {
     const hole = state.holes[holeId];
-    
     if (hole.screwId) {
-      // Selection
       selectScrew(hole.screwId);
     } else if (state.selectedScrewId) {
-      // Moving
       moveScrewToHole(state.selectedScrewId, holeId);
     }
   }, [state.holes, state.selectedScrewId, selectScrew, moveScrewToHole]);
@@ -123,6 +154,7 @@ export const useGameState = () => {
     state,
     handleHolePress,
     undo,
-    showTrollHint,
+    nextLevel,
+    retryLevel,
   };
 };

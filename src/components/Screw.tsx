@@ -27,7 +27,10 @@ export const Screw: React.FC<ScrewProps> = ({ x, y, color, isSelected, isMystery
   }));
 
   return (
-    <Animated.View style={[styles.screw, animatedStyle]}>
+    <Animated.View 
+      pointerEvents="none"
+      style={[styles.screw, animatedStyle]}
+    >
       <View style={styles.topPattern} />
       <View style={styles.shine} />
     </Animated.View>

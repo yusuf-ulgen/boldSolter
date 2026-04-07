@@ -1,78 +1,93 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { useAnimatedStyle, withTiming, withSpring, withRepeat, withSequence } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withTiming, withSpring } from 'react-native-reanimated';
 import { THEME } from '../constants/theme';
-import { Color, Hole } from '../types/game';
+import { Color, Point } from '../types/game';
+import Svg, { Path, Circle } from 'react-native-svg';
 
 interface PlateProps {
-  holes: Hole[];
+  shapePoints: Point[];
   color: Color;
   zIndex: number;
   isRemoved: boolean;
   attachedScrewCount: number;
 }
 
-export const Plate: React.FC<PlateProps> = ({ holes, color, zIndex, isRemoved, attachedScrewCount }) => {
+export const Plate: React.FC<PlateProps> = ({ shapePoints, color, zIndex, isRemoved, attachedScrewCount }) => {
   const animatedStyle = useAnimatedStyle(() => {
-    // Determine wobble based on how "loose" the plate is
-    const isLoose = attachedScrewCount === 1;
-    const wobble = isLoose 
-      ? withRepeat(withSequence(withTiming(-2, { duration: 100 }), withTiming(2, { duration: 100 })), -1, true)
-      : 0;
-
     return {
       opacity: withTiming(isRemoved ? 0 : 1, { duration: 500 }),
       transform: [
         { translateY: withSpring(isRemoved ? 1000 : 0) },
-        { rotate: isRemoved ? withSpring('45deg') : withSpring(`${wobble}deg`) },
+        { rotate: isRemoved ? withSpring('45deg') : withSpring('0deg') },
       ] as any,
     };
   });
 
-  // Simple bounding box logic for prototype
-  const minX = Math.min(...holes.map(h => h.x)) - 40;
-  const maxX = Math.max(...holes.map(h => h.x)) + 40;
-  const minY = Math.min(...holes.map(h => h.y)) - 40;
-  const maxY = Math.max(...holes.map(h => h.y)) + 40;
+  if (shapePoints.length < 2) return null;
+
+  // Calculate bounding box for SVG viewbox
+  const minX = Math.min(...shapePoints.map(p => p.x)) - 50;
+  const maxX = Math.max(...shapePoints.map(p => p.x)) + 50;
+  const minY = Math.min(...shapePoints.map(p => p.y)) - 50;
+  const maxY = Math.max(...shapePoints.map(p => p.y)) + 50;
+  const width = maxX - minX;
+  const height = maxY - minY;
+
+  // Generate Path data
+  const pathData = shapePoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x - minX} ${p.y - minY}`).join(' ');
 
   return (
     <Animated.View
+      pointerEvents="none"
       style={[
-        styles.plate,
+        styles.plateContainer,
         {
-          backgroundColor: THEME.colors.plates[color],
           zIndex,
           left: minX,
           top: minY,
-          width: maxX - minX,
-          height: maxY - minY,
+          width,
+          height,
         },
         animatedStyle,
       ]}
     >
-      <Animated.View style={styles.edge} />
+      <Svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`}>
+        {/* Main Plate Body */}
+        <Path
+          d={pathData}
+          stroke={THEME.colors.plates[color]}
+          strokeWidth="45"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+        {/* Inner Edge / 3D effect */}
+        <Path
+          d={pathData}
+          stroke="rgba(255,255,255,0.15)"
+          strokeWidth="35"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
+        />
+        {/* Hole cutouts (visual only) */}
+        {shapePoints.map((p, i) => (
+           <Circle 
+             key={i} 
+             cx={p.x - minX} 
+             cy={p.y - minY} 
+             r={THEME.spacing.holeRadius - 2} 
+             fill="rgba(0,0,0,0.3)" 
+           />
+        ))}
+      </Svg>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  plate: {
+  plateContainer: {
     position: 'absolute',
-    borderRadius: THEME.spacing.plateRounding,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 2,
-    overflow: 'hidden',
-  },
-  edge: {
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    height: 8,
-    backgroundColor: 'rgba(0,0,0,0.2)',
   }
 });
