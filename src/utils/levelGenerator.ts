@@ -90,26 +90,43 @@ export const generateLevel = (levelIndex: number): GameState => {
     });
   }
 
-  // 4. Ensure some empty holes
+  // 4. Determine which holes are needed
+  const neededHoleIds = new Set<string>();
+  
+  // Add holes that are part of plates
+  Object.values(plates).forEach(plate => {
+    plate.holeIds.forEach(hid => neededHoleIds.add(hid));
+  });
+
+  // Add holes that have screws
+  Object.values(screws).forEach(screw => {
+    neededHoleIds.add(screw.holeId);
+  });
+
+  // 5. Add a few extra empty "strategy" holes
   const allHoleIds = Object.keys(holes);
-  const emptyHoleCount = Math.max(1, 3 - Math.floor(levelIndex / 20));
-  let cleared = 0;
-  for (let i = 0; i < allHoleIds.length && cleared < emptyHoleCount; i++) {
-     const hid = allHoleIds[i];
-     if (holes[hid].screwId) {
-       const sid = holes[hid].screwId!;
-       delete screws[sid];
-       holes[hid].screwId = undefined;
-       cleared++;
-     }
+  const remainingHoleIds = allHoleIds.filter(id => !neededHoleIds.has(id));
+  
+  // Complexity based staging holes: 2 or 3
+  const stagingHoleCount = levelIndex < 5 ? 3 : 2; 
+  for (let i = 0; i < stagingHoleCount && remainingHoleIds.length > 0; i++) {
+    const randomIndex = Math.floor(Math.random() * remainingHoleIds.length);
+    const selectedId = remainingHoleIds.splice(randomIndex, 1)[0];
+    neededHoleIds.add(selectedId);
   }
+
+  // 6. Filter holes record
+  const filteredHoles: Record<string, Hole> = {};
+  neededHoleIds.forEach(id => {
+    filteredHoles[id] = holes[id];
+  });
 
   return {
     levelIndex,
-    timeLeft: Math.max(30, 120 - levelIndex * 2), // 2 minutes to 30 seconds
+    timeLeft: Math.max(30, 120 - levelIndex * 2),
     isLevelComplete: false,
     isGameOver: false,
-    holes,
+    holes: filteredHoles,
     screws,
     plates,
     moves: 0,

@@ -1,4 +1,6 @@
-import { StyleSheet, View, Text, SafeAreaView, TouchableOpacity, Modal } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Modal, BackHandler, ToastAndroid, Platform } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { THEME } from './src/constants/theme';
@@ -7,10 +9,36 @@ import { Plate } from './src/components/Plate';
 import { Screw } from './src/components/Screw';
 import { Hole } from './src/components/Hole';
 import { Undo2, HelpCircle, Trophy, RotateCcw, Play } from 'lucide-react-native';
-import Animated, { FadeInUp, FadeOutDown, FadeIn, ScaleInCenter } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 export default function App() {
   const { state, handleHolePress, undo, nextLevel, retryLevel } = useGameState();
+  const [currentScreen, setCurrentScreen] = useState<'menu' | 'game'>('menu');
+  const lastBackPress = useRef<number>(0);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (currentScreen === 'game') {
+        setCurrentScreen('menu');
+        return true;
+      }
+      
+      const now = Date.now();
+      if (lastBackPress.current && (now - lastBackPress.current < 2000)) {
+        BackHandler.exitApp();
+        return true;
+      }
+      
+      lastBackPress.current = now;
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('Çıkmak için bir kez daha dokunun', ToastAndroid.SHORT);
+      }
+      return true;
+    };
+
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, [currentScreen]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -18,9 +46,8 @@ export default function App() {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaView style={styles.container}>
+  const renderGame = () => (
+    <SafeAreaView style={styles.container}>
         <StatusBar style="light" />
         
         <View style={styles.header}>
@@ -49,8 +76,8 @@ export default function App() {
 
         {state.insultMessage && (
           <Animated.View 
-            entering={FadeInUp} 
-            exiting={FadeOutDown} 
+            entering={FadeIn} 
+            exiting={FadeOut} 
             style={styles.insultBanner}
           >
             <Text style={styles.insultText}>{state.insultMessage}</Text>
@@ -108,13 +135,19 @@ export default function App() {
         {/* Win Overlay */}
         {state.isLevelComplete && (
           <Animated.View entering={FadeIn} style={styles.overlay}>
-             <Animated.View entering={ScaleInCenter} style={styles.modalContent}>
+             <Animated.View entering={FadeIn} style={styles.modalContent}>
                 <Trophy color="#FBBF24" size={60} />
                 <Text style={styles.modalTitle}>HARİKA!</Text>
                 <Text style={styles.modalSubtitle}>Seviye {state.levelIndex} tamamlandı.</Text>
                 <TouchableOpacity style={styles.modalButton} onPress={nextLevel}>
                    <Play color="#fff" size={20} fill="#fff" />
                    <Text style={styles.modalButtonText}>SIRADAKİ</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                   style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
+                   onPress={() => setCurrentScreen('menu')}
+                >
+                   <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>ANA MENÜ</Text>
                 </TouchableOpacity>
              </Animated.View>
           </Animated.View>
@@ -123,7 +156,7 @@ export default function App() {
         {/* Game Over Overlay */}
         {state.isGameOver && (
           <Animated.View entering={FadeIn} style={[styles.overlay, { backgroundColor: 'rgba(239,68,68,0.2)' }]}>
-             <Animated.View entering={ScaleInCenter} style={styles.modalContent}>
+             <Animated.View entering={FadeIn} style={styles.modalContent}>
                 <Text style={styles.modalEmoji}>💀</Text>
                 <Text style={styles.modalTitle}>SÜRE DOLDU!</Text>
                 <Text style={styles.modalSubtitle}>{state.insultMessage || "Hadi ama, biraz daha hızlı!"}</Text>
@@ -131,10 +164,51 @@ export default function App() {
                    <RotateCcw color="#fff" size={20} />
                    <Text style={styles.modalButtonText}>TEKRAR DENE</Text>
                 </TouchableOpacity>
+                <TouchableOpacity 
+                   style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
+                   onPress={() => setCurrentScreen('menu')}
+                >
+                   <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>ANA MENÜ</Text>
+                </TouchableOpacity>
              </Animated.View>
           </Animated.View>
         )}
-      </SafeAreaView>
+    </SafeAreaView>
+  );
+
+  const renderMenu = () => (
+    <SafeAreaView style={styles.menuContainer}>
+      <StatusBar style="light" />
+      <View style={styles.menuContent}>
+        <Animated.View entering={FadeIn.delay(200)} style={styles.menuHeader}>
+          <Text style={styles.menuTitle}>BOLT</Text>
+          <Text style={[styles.menuTitle, { color: THEME.colors.primary }]}>SORTER</Text>
+        </Animated.View>
+        
+        <Animated.View entering={FadeIn.delay(400)} style={styles.menuStats}>
+           <Text style={styles.menuSubtitle}>EN YÜKSEK SEVİYE: {state.levelIndex}</Text>
+        </Animated.View>
+
+        <Animated.View entering={FadeIn.delay(600)} style={styles.menuButtons}>
+          <TouchableOpacity 
+            style={styles.playButton} 
+            onPress={() => setCurrentScreen('game')}
+          >
+            <Play color="#fff" size={32} fill="#fff" />
+            <Text style={styles.playButtonText}>OYNA</Text>
+          </TouchableOpacity>
+        </Animated.View>
+
+        <Text style={styles.versionText}>v1.0.0</Text>
+      </View>
+    </SafeAreaView>
+  );
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        {currentScreen === 'menu' ? renderMenu() : renderGame()}
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
@@ -143,6 +217,61 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: THEME.colors.background,
+  },
+  menuContainer: {
+    flex: 1,
+    backgroundColor: THEME.colors.background,
+  },
+  menuContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  menuHeader: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  menuTitle: {
+    fontSize: 64,
+    fontWeight: '900',
+    color: THEME.colors.text,
+    lineHeight: 64,
+    letterSpacing: -2,
+  },
+  menuSubtitle: {
+    fontSize: 16,
+    color: THEME.colors.secondary,
+    fontWeight: 'bold',
+    letterSpacing: 2,
+    marginBottom: 60,
+  },
+  playButton: {
+    backgroundColor: THEME.colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 40,
+    borderRadius: 24,
+    gap: 15,
+    elevation: 8,
+    shadowColor: THEME.colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+  },
+  playButtonText: {
+    color: '#fff',
+    fontSize: 32,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  versionText: {
+    position: 'absolute',
+    bottom: 40,
+    color: 'rgba(255,255,255,0.2)',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   header: {
     padding: 20,

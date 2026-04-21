@@ -2,10 +2,9 @@
   "expo": {
     "name": "Bolt Sorter",
     "slug": "bolt-sorter",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -13,8 +12,14 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.yusufulgen.boldgame",
+      "versionCode": 5
     },
-    "web": {
+    "web": {},
+    "extra": {
+      "eas": {
+        "projectId": "317abe14-d56c-4bb9-bd3b-0705361a3ce5"
+      }
     }
   }
 }
