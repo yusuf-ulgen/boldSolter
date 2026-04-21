@@ -107,8 +107,8 @@ export const generateLevel = (levelIndex: number): GameState => {
   const allHoleIds = Object.keys(holes);
   const remainingHoleIds = allHoleIds.filter(id => !neededHoleIds.has(id));
   
-  // Complexity based staging holes: 2 or 3
-  const stagingHoleCount = levelIndex < 5 ? 3 : 2; 
+  // Complexity based staging holes: Ensure at least 3 holes (max plate size)
+  const stagingHoleCount = levelIndex < 10 ? 3 : 4; 
   for (let i = 0; i < stagingHoleCount && remainingHoleIds.length > 0; i++) {
     const randomIndex = Math.floor(Math.random() * remainingHoleIds.length);
     const selectedId = remainingHoleIds.splice(randomIndex, 1)[0];
