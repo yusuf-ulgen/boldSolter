@@ -8,18 +8,32 @@ import { useGameState } from './src/hooks/useGameState';
 import { Plate } from './src/components/Plate';
 import { Screw } from './src/components/Screw';
 import { Hole } from './src/components/Hole';
-import { Undo2, HelpCircle, Trophy, RotateCcw, Play } from 'lucide-react-native';
+import { Undo2, HelpCircle, Trophy, RotateCcw, Play, Pause } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 export default function App() {
-  const { state, handleHolePress, undo, nextLevel, retryLevel } = useGameState();
+  const { state, handleHolePress, undo, nextLevel, retryLevel, togglePause, setIsPaused } = useGameState();
   const [currentScreen, setCurrentScreen] = useState<'menu' | 'game'>('menu');
+  const [showConfirmExit, setShowConfirmExit] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const lastBackPress = useRef<number>(0);
+  const shownTutorials = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    if ((state.levelIndex === 1 || state.levelIndex === 4) && currentScreen === 'game' && !shownTutorials.current.has(state.levelIndex)) {
+      setShowTutorial(true);
+      shownTutorials.current.add(state.levelIndex);
+    }
+  }, [state.levelIndex, currentScreen]);
 
   useEffect(() => {
     const onBackPress = () => {
       if (currentScreen === 'game') {
-        setCurrentScreen('menu');
+        if (state.isPaused) {
+          setShowConfirmExit(true);
+        } else {
+          togglePause();
+        }
         return true;
       }
       
@@ -51,21 +65,28 @@ export default function App() {
         <StatusBar style="light" />
         
         <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>Bolt Sorter</Text>
+          <View style={styles.headerLeft}>
+            <Text style={styles.title} numberOfLines={1}>Bolt Sorter</Text>
             <View style={styles.levelBadge}>
               <Text style={styles.levelText}>SEVİYE {state.levelIndex}</Text>
             </View>
           </View>
-          <View style={styles.headerStats}>
+          
+          <View style={styles.headerCenter}>
             <View style={[styles.statBox, state.timeLeft < 10 && styles.statBoxUrgent]}>
               <Text style={styles.statLabel}>SÜRE</Text>
               <Text style={styles.statValue}>{formatTime(state.timeLeft)}</Text>
             </View>
+          </View>
+
+          <View style={styles.headerRight}>
             <View style={styles.statBox}>
               <Text style={styles.statLabel}>HAMLE</Text>
               <Text style={styles.statValue}>{state.moves}</Text>
             </View>
+            <TouchableOpacity style={styles.pauseIconButton} onPress={togglePause}>
+              <Pause color={THEME.colors.text} size={20} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -91,6 +112,7 @@ export default function App() {
               x={hole.x}
               y={hole.y}
               isSelected={state.selectedScrewId === hole.screwId}
+              isAvailable={!!state.selectedScrewId && !hole.screwId}
               onPress={() => handleHolePress(hole.id)}
             />
           ))}
@@ -145,7 +167,10 @@ export default function App() {
                 </TouchableOpacity>
                 <TouchableOpacity 
                    style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
-                   onPress={() => setCurrentScreen('menu')}
+                   onPress={() => {
+                     nextLevel();
+                     setCurrentScreen('menu');
+                   }}
                 >
                    <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>ANA MENÜ</Text>
                 </TouchableOpacity>
@@ -166,9 +191,74 @@ export default function App() {
                 </TouchableOpacity>
                 <TouchableOpacity 
                    style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
-                   onPress={() => setCurrentScreen('menu')}
+                   onPress={() => {
+                     retryLevel();
+                     setCurrentScreen('menu');
+                   }}
                 >
                    <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>ANA MENÜ</Text>
+                </TouchableOpacity>
+             </Animated.View>
+          </Animated.View>
+        )}
+
+        {/* Pause Overlay */}
+        {state.isPaused && !showConfirmExit && (
+          <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
+             <Animated.View entering={FadeIn} style={styles.modalContent}>
+                <Pause color={THEME.colors.primary} size={60} />
+                <Text style={styles.modalTitle}>OYUN DURAKLATILDI</Text>
+                <TouchableOpacity style={styles.modalButton} onPress={togglePause}>
+                   <Play color="#fff" size={20} fill="#fff" />
+                   <Text style={styles.modalButtonText}>DEVAM ET</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                   style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
+                   onPress={() => setShowConfirmExit(true)}
+                >
+                   <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>ANA MENÜYE DÖN</Text>
+                </TouchableOpacity>
+             </Animated.View>
+          </Animated.View>
+        )}
+
+        {/* Confirm Exit Overlay */}
+        {showConfirmExit && (
+          <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
+             <Animated.View entering={FadeIn} style={styles.modalContent}>
+                <HelpCircle color="#EF4444" size={60} />
+                <Text style={styles.modalTitle}>EMİN MİSİNİZ?</Text>
+                <Text style={styles.modalSubtitle}>Mevcut ilerlemeniz kaybolacak.</Text>
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#EF4444' }]} onPress={() => {
+                  setShowConfirmExit(false);
+                  setIsPaused(false);
+                  setCurrentScreen('menu');
+                }}>
+                   <Text style={styles.modalButtonText}>ÇIK</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                   style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
+                   onPress={() => setShowConfirmExit(false)}
+                >
+                   <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>İPTAL</Text>
+                </TouchableOpacity>
+             </Animated.View>
+          </Animated.View>
+        )}
+
+        {/* Tutorial Overlay */}
+        {showTutorial && (
+          <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
+             <Animated.View entering={FadeIn} style={styles.modalContent}>
+                <HelpCircle color={THEME.colors.primary} size={60} />
+                <Text style={styles.modalTitle}>{state.levelIndex === 1 ? "NASIL OYNANIR?" : "YENİ ÖZELLİK!"}</Text>
+                <Text style={styles.modalSubtitle}>
+                  {state.levelIndex === 1 
+                    ? "Vidaları boş deliklere taşıyarak üzerlerindeki plakaları düşürmeye çalış! Tüm plakalar düştüğünde kazanırsın." 
+                    : "Bazı vidalar gizemli olabilir! Onlara tıkladığında gerçek renkleri ortaya çıkar. Stratejini ona göre kur!"}
+                </Text>
+                <TouchableOpacity style={styles.modalButton} onPress={() => setShowTutorial(false)}>
+                   <Text style={styles.modalButtonText}>ANLADIM</Text>
                 </TouchableOpacity>
              </Animated.View>
           </Animated.View>
@@ -232,6 +322,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
+  menuStats: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  menuButtons: {
+    alignItems: 'center',
+  },
   menuTitle: {
     fontSize: 64,
     fontWeight: '900',
@@ -274,20 +371,41 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   header: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  headerLeft: {
+    flex: 1.2,
+  },
+  headerCenter: {
+    flex: 1,
     alignItems: 'center',
   },
-  headerStats: {
+  headerRight: {
+    flex: 1.2,
     flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
     gap: 8,
   },
+  pauseIconButton: {
+    backgroundColor: THEME.colors.surface,
+    padding: 8,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 40,
+    height: 40,
+  },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '900',
     color: THEME.colors.text,
-    letterSpacing: -1,
+    letterSpacing: -0.5,
   },
   levelBadge: {
     backgroundColor: THEME.colors.primary + '33',

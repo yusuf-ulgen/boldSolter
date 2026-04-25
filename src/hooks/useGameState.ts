@@ -29,7 +29,7 @@ export const useGameState = () => {
 
   // Timer logic
   useEffect(() => {
-    if (state.isGameOver || state.isLevelComplete) {
+    if (state.isGameOver || state.isLevelComplete || state.isPaused) {
       if (timerRef.current) clearInterval(timerRef.current);
       return;
     }
@@ -47,7 +47,7 @@ export const useGameState = () => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [state.isGameOver, state.isLevelComplete]);
+  }, [state.isGameOver, state.isLevelComplete, state.isPaused]);
 
   const saveProgress = async (levelIndex: number) => {
     try {
@@ -67,14 +67,22 @@ export const useGameState = () => {
     setState(generateLevel(state.levelIndex));
   }, [state.levelIndex]);
 
+  const togglePause = useCallback(() => {
+    setState(prev => ({ ...prev, isPaused: !prev.isPaused }));
+  }, []);
+
+  const setIsPaused = useCallback((paused: boolean) => {
+    setState(prev => ({ ...prev, isPaused: paused }));
+  }, []);
+
   const selectScrew = useCallback((screwId: string) => {
-    if (state.isGameOver || state.isLevelComplete) return;
+    if (state.isGameOver || state.isLevelComplete || state.isPaused) return;
     setState(prev => ({ ...prev, selectedScrewId: screwId, insultMessage: undefined }));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [state.isGameOver, state.isLevelComplete]);
 
   const moveScrewToHole = useCallback((screwId: string, holeId: string) => {
-    if (state.isGameOver || state.isLevelComplete) return;
+    if (state.isGameOver || state.isLevelComplete || state.isPaused) return;
 
     setState(prev => {
       const screw = prev.screws[screwId];
@@ -128,7 +136,7 @@ export const useGameState = () => {
   }, [state.isGameOver, state.isLevelComplete]);
 
   const undo = useCallback(() => {
-    if (state.isGameOver || state.isLevelComplete) return;
+    if (state.isGameOver || state.isLevelComplete || state.isPaused) return;
     setState(prev => {
       if (prev.history.length === 0) return { ...prev, insultMessage: "Neyi geri alacaksın? Hafızan mı silindi? 🧠" };
       const lastStateStr = prev.history[prev.history.length - 1];
@@ -156,5 +164,7 @@ export const useGameState = () => {
     undo,
     nextLevel,
     retryLevel,
+    togglePause,
+    setIsPaused,
   };
 };

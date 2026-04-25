@@ -3,9 +3,9 @@ import { GameState, Hole, Plate, Screw, Point, Color } from '../types/game';
 const COLORS: Color[] = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
 const GRID_COLS = 5;
 const GRID_ROWS = 7;
-const SPACING = 65;
+const SPACING = 62;
 const OFFSET_X = 40;
-const OFFSET_Y = 80;
+const OFFSET_Y = 40;
 
 export const generateLevel = (levelIndex: number): GameState => {
   const holes: Record<string, Hole> = {};
@@ -25,11 +25,12 @@ export const generateLevel = (levelIndex: number): GameState => {
   }
 
   // 2. Determine complexity
-  const numPlates = Math.min(3 + Math.floor(levelIndex / 5), 18);
+  const numPlates = Math.min(3 + Math.floor(levelIndex / 2.5), 22);
   const holesArray = Object.values(holes);
   const usedHoleIds = new Set<string>();
 
   // 3. Create Plates
+  let maxGeneratedPlateSize = 2;
   for (let i = 0; i < numPlates; i++) {
     const plateId = `p${i}`;
     const plateHoleIds: string[] = [];
@@ -45,8 +46,10 @@ export const generateLevel = (levelIndex: number): GameState => {
     plateHoleIds.push(startHole.id);
     usedHoleIds.add(startHole.id);
 
-    // Expand plate to 2-4 holes
-    const plateSize = 2 + Math.floor(Math.random() * 2);
+    // Expand plate to 2-5 holes (larger plates in higher levels)
+    const maxPlateSize = levelIndex < 5 ? 3 : (levelIndex < 15 ? 4 : 5);
+    const plateSize = 2 + Math.floor(Math.random() * (maxPlateSize - 1));
+    maxGeneratedPlateSize = Math.max(maxGeneratedPlateSize, plateSize);
     for (let j = 1; j < plateSize; j++) {
       const lastHoleId = plateHoleIds[plateHoleIds.length - 1];
       const match = lastHoleId.match(/h_(\d+)_(\d+)/);
@@ -83,7 +86,7 @@ export const generateLevel = (levelIndex: number): GameState => {
            id: screwId,
            color,
            holeId: hid,
-           isMystery: Math.random() > 0.8,
+           isMystery: (levelIndex === 4 || levelIndex === 5) ? true : Math.random() > 0.8,
          };
          holes[hid].screwId = screwId;
       }
@@ -107,8 +110,8 @@ export const generateLevel = (levelIndex: number): GameState => {
   const allHoleIds = Object.keys(holes);
   const remainingHoleIds = allHoleIds.filter(id => !neededHoleIds.has(id));
   
-  // Complexity based staging holes: Ensure at least 3 holes (max plate size)
-  const stagingHoleCount = levelIndex < 10 ? 3 : 4; 
+  // Solvability: At least as many empty holes as the largest plate's screws
+  const stagingHoleCount = Math.max(maxGeneratedPlateSize, 5 - Math.floor(levelIndex / 15)); 
   for (let i = 0; i < stagingHoleCount && remainingHoleIds.length > 0; i++) {
     const randomIndex = Math.floor(Math.random() * remainingHoleIds.length);
     const selectedId = remainingHoleIds.splice(randomIndex, 1)[0];
@@ -123,9 +126,10 @@ export const generateLevel = (levelIndex: number): GameState => {
 
   return {
     levelIndex,
-    timeLeft: Math.max(30, 120 - levelIndex * 2),
+    timeLeft: Math.max(20, 100 - levelIndex * 3.5),
     isLevelComplete: false,
     isGameOver: false,
+    isPaused: false,
     holes: filteredHoles,
     screws,
     plates,
