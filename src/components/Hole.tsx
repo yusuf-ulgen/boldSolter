@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import Animated, { useAnimatedStyle, withSpring, withRepeat, withTiming, useSharedValue } from 'react-native-reanimated';
 import { THEME } from '../constants/theme';
+import { Color } from '../types/game';
 
 interface HoleProps {
   x: number;
@@ -10,9 +11,10 @@ interface HoleProps {
   isSelected?: boolean;
   isAvailable?: boolean;
   isHintTarget?: boolean;
+  color?: Color;
 }
 
-export const Hole: React.FC<HoleProps> = ({ x, y, onPress, isSelected, isAvailable, isHintTarget }) => {
+export const Hole: React.FC<HoleProps> = ({ x, y, onPress, isSelected, isAvailable, isHintTarget, color }) => {
   const animatedStyle = useAnimatedStyle(() => ({
     borderWidth: withTiming(isSelected ? 2 : (isHintTarget ? 3 : (isAvailable ? 1.5 : 0)), { duration: 200 }),
     borderColor: withTiming(isHintTarget ? '#EF4444' : (isAvailable ? THEME.colors.primary : 'transparent'), { duration: 200 }),
@@ -47,6 +49,9 @@ export const Hole: React.FC<HoleProps> = ({ x, y, onPress, isSelected, isAvailab
       activeOpacity={0.7}
     >
       <Animated.View style={[styles.hole, animatedStyle, betterPulsingStyle]}>
+        {color && (
+          <View style={[styles.colorRing, { borderColor: THEME.colors.screws[color] }]} />
+        )}
         <View style={styles.crossContainer}>
           <View style={styles.crossLine} />
           <View style={[styles.crossLine, { transform: [{ rotate: '90deg' }] }]} />
@@ -93,4 +98,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 1,
   },
+  colorRing: {
+    position: 'absolute',
+    width: '115%',
+    height: '115%',
+    borderRadius: THEME.spacing.holeRadius * 1.5,
+    borderWidth: 3,
+    borderStyle: 'dashed',
+    opacity: 0.8,
+  }
 });

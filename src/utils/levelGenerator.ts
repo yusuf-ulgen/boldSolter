@@ -82,11 +82,26 @@ export const generateLevel = (levelIndex: number): GameState => {
     plateHoleIds.forEach(hid => {
       const screwId = `s_${hid}`;
       if (!screws[screwId]) {
+         let mechanic: 'normal' | 'icy' | 'oily' = 'normal';
+         let durability = 0;
+
+         // Level 15+: Introduce Icy Screws (20% chance)
+         if (levelIndex >= 15 && Math.random() > 0.8) {
+           mechanic = 'icy';
+           durability = 3; // Needs 3 clicks or hold
+         } 
+         // Level 30+: Introduce Oily Screws (20% chance)
+         else if (levelIndex >= 30 && Math.random() > 0.8) {
+           mechanic = 'oily';
+         }
+
          screws[screwId] = {
            id: screwId,
            color,
            holeId: hid,
            isMystery: (levelIndex === 4 || levelIndex === 5) ? true : Math.random() > 0.8,
+           mechanic,
+           durability,
          };
          holes[hid].screwId = screwId;
       }
@@ -115,6 +130,12 @@ export const generateLevel = (levelIndex: number): GameState => {
   for (let i = 0; i < stagingHoleCount && remainingHoleIds.length > 0; i++) {
     const randomIndex = Math.floor(Math.random() * remainingHoleIds.length);
     const selectedId = remainingHoleIds.splice(randomIndex, 1)[0];
+    
+    // Level 45+: Assign color to some empty holes
+    if (levelIndex >= 45 && Math.random() > 0.5) {
+      holes[selectedId].color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    }
+    
     neededHoleIds.add(selectedId);
   }
 
@@ -126,7 +147,7 @@ export const generateLevel = (levelIndex: number): GameState => {
 
   return {
     levelIndex,
-    timeLeft: Math.max(20, 100 - levelIndex * 3.5),
+    timeLeft: Math.max(40, 120 - levelIndex * 3.5),
     isLevelComplete: false,
     isGameOver: false,
     isPaused: false,

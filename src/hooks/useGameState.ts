@@ -77,9 +77,26 @@ export const useGameState = () => {
 
   const selectScrew = useCallback((screwId: string) => {
     if (state.isGameOver || state.isLevelComplete || state.isPaused) return;
+    
+    const screw = state.screws[screwId];
+    
+    // Icy mechanic: Need to break ice first
+    if (screw.mechanic === 'icy' && (screw.durability || 0) > 0) {
+      setState(prev => ({
+        ...prev,
+        screws: {
+          ...prev.screws,
+          [screwId]: { ...screw, durability: (screw.durability || 0) - 1 }
+        },
+        insultMessage: "Buzları kırmak için daha fazla tıkla! 🧊"
+      }));
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      return;
+    }
+
     setState(prev => ({ ...prev, selectedScrewId: screwId, insultMessage: undefined }));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [state.isGameOver, state.isLevelComplete]);
+  }, [state.isGameOver, state.isLevelComplete, state.screws]);
 
   const moveScrewToHole = useCallback((screwId: string, holeId: string) => {
     if (state.isGameOver || state.isLevelComplete || state.isPaused) return;
@@ -92,6 +109,17 @@ export const useGameState = () => {
         return { ...prev, insultMessage: "Dolu deliğe girmeye çalışmak... Başarılar. 🤡" };
       }
 
+      // Color constraint
+      if (targetHole.color && screw.color !== targetHole.color && screw.color !== 'mystery') {
+        return { ...prev, insultMessage: "Renkler uyuşmuyor! Bu deliğe giremezsin. 🎨" };
+      }
+
+      // Oily mechanic: 30% chance to slip back
+      if (screw.mechanic === 'oily' && Math.random() < 0.3) {
+         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+         return { ...prev, selectedScrewId: undefined, insultMessage: "Vıcık vıcık! Vida elinden kaydı. 🧼" };
+      }
+
       const sourceHoleId = screw.holeId;
       const newHoles = {
         ...prev.holes,
@@ -101,7 +129,7 @@ export const useGameState = () => {
 
       const newScrews = {
         ...prev.screws,
-        [screwId]: { ...screw, holeId: holeId, isMystery: false }, 
+        [screwId]: { ...screw, holeId: holeId, isMystery: false, mechanic: 'normal' }, // Moves clear effects
       };
 
       const newPlates = { ...prev.plates };

@@ -10,6 +10,8 @@ export interface Screw {
   color: Color | 'mystery';
   holeId: string;
   isMystery?: boolean;
+  mechanic?: 'normal' | 'icy' | 'oily';
+  durability?: number; // Buzlu vidalar için
 }
 
 export interface Hole {
@@ -18,6 +20,7 @@ export interface Hole {
   y: number;
   screwId?: string;
   plateId?: string;
+  color?: Color; // Renkli delikler için
 }
 
 export interface Plate {

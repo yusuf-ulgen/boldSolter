@@ -20,7 +20,8 @@ export default function App() {
   const shownTutorials = useRef<Set<number>>(new Set());
 
   useEffect(() => {
-    if ((state.levelIndex === 1 || state.levelIndex === 4) && currentScreen === 'game' && !shownTutorials.current.has(state.levelIndex)) {
+    const tutorialLevels = [1, 15, 30, 45];
+    if (tutorialLevels.includes(state.levelIndex) && currentScreen === 'game' && !shownTutorials.current.has(state.levelIndex)) {
       setShowTutorial(true);
       shownTutorials.current.add(state.levelIndex);
     }
@@ -251,11 +252,14 @@ export default function App() {
           <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
              <Animated.View entering={FadeIn} style={styles.modalContent}>
                 <HelpCircle color={THEME.colors.primary} size={60} />
-                <Text style={styles.modalTitle}>{state.levelIndex === 1 ? "NASIL OYNANIR?" : "YENİ ÖZELLİK!"}</Text>
+                <Text style={styles.modalTitle}>
+                  {state.levelIndex === 1 ? "NASIL OYNANIR?" : "YENİ ÖZELLİK!"}
+                </Text>
                 <Text style={styles.modalSubtitle}>
-                  {state.levelIndex === 1 
-                    ? "Vidaları boş deliklere taşıyarak üzerlerindeki plakaları düşürmeye çalış! Tüm plakalar düştüğünde kazanırsın." 
-                    : "Bazı vidalar gizemli olabilir! Onlara tıkladığında gerçek renkleri ortaya çıkar. Stratejini ona göre kur!"}
+                  {state.levelIndex === 1 && "Vidaları boş deliklere taşıyarak üzerlerindeki plakaları düşürmeye çalış! Tüm plakalar düştüğünde kazanırsın."}
+                  {state.levelIndex === 15 && "BUZLU VİDALAR! Bu vidalar donmuş durumda. Onları seçebilmek için üzerlerine birkaç kez tıklayarak buzu kırmalısın!"}
+                  {state.levelIndex === 30 && "YAĞLI VİDALAR! Bazı vidalar çok kaygan. Onları taşırken elinden kayıp eski yerlerine dönebilirler, dikkatli ol!"}
+                  {state.levelIndex === 45 && "RENKLİ DELİKLER! Bazı deliklerin etrafında renkli halkalar var. Bu deliklere sadece aynı renkteki vidaları takabilirsin!"}
                 </Text>
                 <TouchableOpacity style={styles.modalButton} onPress={() => setShowTutorial(false)}>
                    <Text style={styles.modalButtonText}>ANLADIM</Text>
