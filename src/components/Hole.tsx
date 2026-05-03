@@ -7,14 +7,15 @@ import { Color } from '../types/game';
 interface HoleProps {
   x: number;
   y: number;
-  onPress: () => void;
+  onPress?: () => void;
   isSelected?: boolean;
   isAvailable?: boolean;
   isHintTarget?: boolean;
   color?: Color;
+  isStatic?: boolean;
 }
 
-export const Hole: React.FC<HoleProps> = ({ x, y, onPress, isSelected, isAvailable, isHintTarget, color }) => {
+export const Hole: React.FC<HoleProps> = ({ x, y, onPress, isSelected, isAvailable, isHintTarget, color, isStatic }) => {
   const animatedStyle = useAnimatedStyle(() => ({
     borderWidth: withTiming(isSelected ? 2 : (isHintTarget ? 3 : (isAvailable ? 1.5 : 0)), { duration: 200 }),
     borderColor: withTiming(isHintTarget ? '#EF4444' : (isAvailable ? THEME.colors.primary : 'transparent'), { duration: 200 }),
@@ -45,7 +46,13 @@ export const Hole: React.FC<HoleProps> = ({ x, y, onPress, isSelected, isAvailab
   return (
     <TouchableOpacity
       onPress={onPress}
-      style={[styles.container, { left: x - THEME.spacing.holeRadius, top: y - THEME.spacing.holeRadius }]}
+      disabled={isStatic}
+      style={[
+        styles.container, 
+        isStatic 
+          ? { position: 'relative' } 
+          : { left: x - THEME.spacing.holeRadius, top: y - THEME.spacing.holeRadius }
+      ]}
       activeOpacity={0.7}
     >
       <Animated.View style={[styles.hole, animatedStyle, betterPulsingStyle]}>

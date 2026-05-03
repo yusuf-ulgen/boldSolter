@@ -147,7 +147,7 @@ export const generateLevel = (levelIndex: number): GameState => {
 
   return {
     levelIndex,
-    timeLeft: Math.max(40, 120 - levelIndex * 3.5),
+    timeLeft: Math.max(90, 210 - levelIndex * 3),
     isLevelComplete: false,
     isGameOver: false,
     isPaused: false,

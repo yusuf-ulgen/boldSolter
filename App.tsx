@@ -20,7 +20,7 @@ export default function App() {
   const shownTutorials = useRef<Set<number>>(new Set());
 
   useEffect(() => {
-    const tutorialLevels = [1, 15, 30, 45];
+    const tutorialLevels = [1, 4, 15, 30, 45];
     if (tutorialLevels.includes(state.levelIndex) && currentScreen === 'game' && !shownTutorials.current.has(state.levelIndex)) {
       setShowTutorial(true);
       shownTutorials.current.add(state.levelIndex);
@@ -138,6 +138,8 @@ export default function App() {
                 x={hole.x}
                 y={hole.y}
                 isMystery={screw.isMystery}
+                mechanic={screw.mechanic}
+                durability={screw.durability}
                 isSelected={state.selectedScrewId === screw.id}
               />
             );
@@ -251,12 +253,19 @@ export default function App() {
         {showTutorial && (
           <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
              <Animated.View entering={FadeIn} style={styles.modalContent}>
-                <HelpCircle color={THEME.colors.primary} size={60} />
+             <View style={{ marginBottom: 25, height: 70, justifyContent: 'center', alignItems: 'center' }}>
+                {state.levelIndex === 1 && <Screw x={0} y={0} color="red" isStatic />}
+                {state.levelIndex === 4 && <Screw x={0} y={0} color="red" isMystery isStatic />}
+                {state.levelIndex === 15 && <Screw x={0} y={0} color="blue" mechanic="icy" durability={3} isStatic />}
+                {state.levelIndex === 30 && <Screw x={0} y={0} color="green" mechanic="oily" isStatic />}
+                {state.levelIndex === 45 && <Hole x={0} y={0} color="yellow" isStatic />}
+             </View>
                 <Text style={styles.modalTitle}>
                   {state.levelIndex === 1 ? "NASIL OYNANIR?" : "YENİ ÖZELLİK!"}
                 </Text>
                 <Text style={styles.modalSubtitle}>
                   {state.levelIndex === 1 && "Vidaları boş deliklere taşıyarak üzerlerindeki plakaları düşürmeye çalış! Tüm plakalar düştüğünde kazanırsın."}
+                  {state.levelIndex === 4 && "GİZEMLİ VİDALAR! Gri renkte parıldayan bu vidaların gerçek rengini sadece yerlerini değiştirdiğinde görebilirsin. Stratejini ona göre kur!"}
                   {state.levelIndex === 15 && "BUZLU VİDALAR! Bu vidalar donmuş durumda. Onları seçebilmek için üzerlerine birkaç kez tıklayarak buzu kırmalısın!"}
                   {state.levelIndex === 30 && "YAĞLI VİDALAR! Bazı vidalar çok kaygan. Onları taşırken elinden kayıp eski yerlerine dönebilirler, dikkatli ol!"}
                   {state.levelIndex === 45 && "RENKLİ DELİKLER! Bazı deliklerin etrafında renkli halkalar var. Bu deliklere sadece aynı renkteki vidaları takabilirsin!"}
