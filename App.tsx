@@ -8,16 +8,45 @@ import { useGameState } from './src/hooks/useGameState';
 import { Plate } from './src/components/Plate';
 import { Screw } from './src/components/Screw';
 import { Hole } from './src/components/Hole';
-import { Undo2, HelpCircle, Trophy, RotateCcw, Play, Pause } from 'lucide-react-native';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { Undo2, HelpCircle, Trophy, RotateCcw, Play, Pause, Map as MapIcon, Home } from 'lucide-react-native';
+import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutLeft } from 'react-native-reanimated';
+import { LevelMap } from './src/components/LevelMap';
+import { Scoreboard } from './src/components/Scoreboard';
+import { saveScore } from './src/lib/firebaseService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TextInput } from 'react-native-gesture-handler';
 
 export default function App() {
-  const { state, handleHolePress, undo, nextLevel, retryLevel, togglePause, setIsPaused } = useGameState();
-  const [currentScreen, setCurrentScreen] = useState<'menu' | 'game'>('menu');
+  const { state, handleHolePress, undo, nextLevel, retryLevel, togglePause, setIsPaused, jumpToLevel } = useGameState();
+  const [currentScreen, setCurrentScreen] = useState<'menu' | 'game' | 'map'>('menu');
   const [showConfirmExit, setShowConfirmExit] = useState(false);
+  const [showConfirmRestart, setShowConfirmRestart] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [playerName, setPlayerName] = useState('');
+  const [showNicknamePrompt, setShowNicknamePrompt] = useState(false);
+  const [showScoreboard, setShowScoreboard] = useState(false);
   const lastBackPress = useRef<number>(0);
   const shownTutorials = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    const checkNickname = async () => {
+      const savedName = await AsyncStorage.getItem('@player_nickname');
+      if (savedName) {
+        setPlayerName(savedName);
+      } else {
+        setShowNicknamePrompt(true);
+      }
+    };
+    checkNickname();
+  }, []);
+
+  useEffect(() => {
+    if (state.isLevelComplete) {
+       // Save score to Firebase
+       saveScore(state.levelIndex, state.moves, state.timeLeft, playerName);
+       setShowScoreboard(true);
+    }
+  }, [state.isLevelComplete]);
 
   useEffect(() => {
     const tutorialLevels = [1, 4, 15, 30, 45];
@@ -206,20 +235,55 @@ export default function App() {
         )}
 
         {/* Pause Overlay */}
-        {state.isPaused && !showConfirmExit && (
+        {state.isPaused && !showConfirmExit && !showConfirmRestart && (
           <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
              <Animated.View entering={FadeIn} style={styles.modalContent}>
                 <Pause color={THEME.colors.primary} size={60} />
                 <Text style={styles.modalTitle}>OYUN DURAKLATILDI</Text>
+                
                 <TouchableOpacity style={styles.modalButton} onPress={togglePause}>
                    <Play color="#fff" size={20} fill="#fff" />
                    <Text style={styles.modalButtonText}>DEVAM ET</Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity 
+                   style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
+                   onPress={() => setShowConfirmRestart(true)}
+                >
+                   <RotateCcw color={THEME.colors.text} size={20} />
+                   <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>TEKRAR BAŞLA</Text>
+                </TouchableOpacity>
+
                 <TouchableOpacity 
                    style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
                    onPress={() => setShowConfirmExit(true)}
                 >
+                   <Home color={THEME.colors.text} size={20} />
                    <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>ANA MENÜYE DÖN</Text>
+                </TouchableOpacity>
+             </Animated.View>
+          </Animated.View>
+        )}
+
+        {/* Confirm Restart Overlay */}
+        {showConfirmRestart && (
+          <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
+             <Animated.View entering={FadeIn} style={styles.modalContent}>
+                <RotateCcw color={THEME.colors.primary} size={60} />
+                <Text style={styles.modalTitle}>EMİN MİSİNİZ?</Text>
+                <Text style={styles.modalSubtitle}>Bölüme en baştan başlanacak.</Text>
+                <TouchableOpacity style={[styles.modalButton, { backgroundColor: THEME.colors.primary }]} onPress={() => {
+                  retryLevel();
+                  setShowConfirmRestart(false);
+                  setIsPaused(false);
+                }}>
+                   <Text style={styles.modalButtonText}>YENİDEN BAŞLAT</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                   style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
+                   onPress={() => setShowConfirmRestart(false)}
+                >
+                   <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>İPTAL</Text>
                 </TouchableOpacity>
              </Animated.View>
           </Animated.View>
@@ -300,6 +364,14 @@ export default function App() {
             <Play color="#fff" size={32} fill="#fff" />
             <Text style={styles.playButtonText}>OYNA</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.playButton, { backgroundColor: THEME.colors.surface, marginTop: 15 }]} 
+            onPress={() => setCurrentScreen('map')}
+          >
+            <MapIcon color={THEME.colors.text} size={28} />
+            <Text style={[styles.playButtonText, { fontSize: 24, color: THEME.colors.text }]}>BÖLÜMLER</Text>
+          </TouchableOpacity>
         </Animated.View>
 
         <Text style={styles.versionText}>v1.0.0</Text>
@@ -307,10 +379,71 @@ export default function App() {
     </SafeAreaView>
   );
 
+  const renderNicknamePrompt = () => (
+    <Modal visible={showNicknamePrompt} transparent animationType="fade">
+      <View style={styles.overlay}>
+        <Animated.View entering={FadeInDown} style={styles.modalContent}>
+          <Trophy color={THEME.colors.primary} size={60} />
+          <Text style={styles.modalTitle}>HOŞ GELDİN!</Text>
+          <Text style={styles.modalSubtitle}>Sıralamalarda görünmek için bir takma ad seç.</Text>
+          <TextInput
+            style={styles.nicknameInput}
+            placeholder="Takma adın..."
+            placeholderTextColor={THEME.colors.secondary}
+            value={playerName}
+            onChangeText={setPlayerName}
+            maxLength={15}
+          />
+          <TouchableOpacity 
+            style={[styles.modalButton, !playerName && { opacity: 0.5 }]} 
+            disabled={!playerName}
+            onPress={async () => {
+              await AsyncStorage.setItem('@player_nickname', playerName);
+              setShowNicknamePrompt(false);
+            }}
+          >
+            <Text style={styles.modalButtonText}>KAYDET</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        {currentScreen === 'menu' ? renderMenu() : renderGame()}
+        {currentScreen === 'menu' && renderMenu()}
+        {currentScreen === 'game' && renderGame()}
+        {currentScreen === 'map' && (
+          <LevelMap 
+            currentLevel={state.levelIndex} 
+            playerName={playerName}
+            onSelectLevel={(level) => {
+              jumpToLevel(level);
+              setCurrentScreen('game');
+            }}
+            onBack={() => setCurrentScreen('menu')}
+          />
+        )}
+        
+        {showScoreboard && (
+          <Scoreboard 
+            levelIndex={state.levelIndex}
+            currentScore={(state.timeLeft * 100) - (state.moves * 10)}
+            playerName={playerName}
+            onNext={() => {
+              setShowScoreboard(false);
+              nextLevel();
+            }}
+            onMenu={() => {
+              setShowScoreboard(false);
+              nextLevel();
+              setCurrentScreen('menu');
+            }}
+          />
+        )}
+
+        {renderNicknamePrompt()}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
@@ -558,5 +691,17 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  nicknameInput: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding: 15,
+    color: THEME.colors.text,
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   }
 });

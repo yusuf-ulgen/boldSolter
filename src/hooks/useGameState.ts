@@ -75,6 +75,10 @@ export const useGameState = () => {
     setState(prev => ({ ...prev, isPaused: paused }));
   }, []);
 
+  const jumpToLevel = useCallback((levelIndex: number) => {
+    setState(generateLevel(levelIndex));
+  }, []);
+
   const selectScrew = useCallback((screwId: string) => {
     if (state.isGameOver || state.isLevelComplete || state.isPaused) return;
     
@@ -194,5 +198,6 @@ export const useGameState = () => {
     retryLevel,
     togglePause,
     setIsPaused,
+    jumpToLevel,
   };
 };
