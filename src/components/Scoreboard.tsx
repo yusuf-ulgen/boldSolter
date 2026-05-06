@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, Image, Dimensions } from 'react-native';
+import { TouchableOpacity } from 'react-native-gesture-handler';
 import { THEME } from '../constants/theme';
 import { Trophy, Play, Home } from 'lucide-react-native';
-import Animated, { FadeIn, FadeInDown, Layout } from 'react-native-reanimated';
+import Animated, { FadeIn, SlideInUp, Layout, LinearTransition } from 'react-native-reanimated';
 import { getLeaderboard, ScoreEntry } from '../lib/firebaseService';
 
 const { width } = Dimensions.get('window');
@@ -10,6 +11,8 @@ const { width } = Dimensions.get('window');
 interface ScoreboardProps {
   levelIndex: number;
   currentScore: number;
+  moves: number;
+  timeLeft: number;
   playerName: string;
   onNext: () => void;
   onMenu: () => void;
@@ -17,7 +20,9 @@ interface ScoreboardProps {
 
 export const Scoreboard: React.FC<ScoreboardProps> = ({ 
   levelIndex, 
-  currentScore, 
+  currentScore,
+  moves,
+  timeLeft,
   playerName, 
   onNext, 
   onMenu 
@@ -53,27 +58,35 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
           const isSecond = index === 0;
           const isThird = index === 2;
 
+          let medalColor = '#FBBF24';
+          if (isSecond) medalColor = '#94A3B8';
+          if (isThird) medalColor = '#D97706';
+
           return (
             <Animated.View 
               key={entry.id || index} 
-              layout={Layout.spring()}
-              entering={FadeInDown.delay(index * 200)}
+              layout={LinearTransition.springify()}
+              entering={FadeIn.delay(index * 200)}
               style={[
                 styles.podiumStep,
                 isFirst ? styles.podiumFirst : (isSecond ? styles.podiumSecond : styles.podiumThird),
-                isPlayer && styles.podiumPlayer
+                isPlayer && styles.podiumPlayer,
+                { borderColor: medalColor }
               ]}
             >
               <View style={styles.avatarContainer}>
-                <View style={[styles.avatar, isPlayer && styles.playerAvatar]}>
+                <View style={[styles.avatar, isPlayer && styles.playerAvatar, { borderColor: medalColor }]}>
                     <Text style={styles.avatarText}>{entry.playerName[0].toUpperCase()}</Text>
                 </View>
-                <View style={[styles.rankCircle, { backgroundColor: isFirst ? '#FBBF24' : (isSecond ? '#94A3B8' : '#D97706') }]}>
+                <View style={[styles.rankCircle, { backgroundColor: medalColor }]}>
                   <Text style={styles.rankCircleText}>{isFirst ? '1' : (isSecond ? '2' : '3')}</Text>
                 </View>
               </View>
-              <Text style={styles.podiumName} numberOfLines={1}>{entry.playerName}</Text>
-              <Text style={styles.podiumScore}>{entry.score}</Text>
+              <View style={styles.podiumInfo}>
+                <Text style={styles.podiumName} numberOfLines={1}>{entry.playerName}</Text>
+                <Text style={[styles.podiumScore, { color: medalColor }]}>{entry.score.toLocaleString()}</Text>
+                <Text style={styles.podiumDetails}>{entry.moves}H • {Math.floor(entry.timeLeft / 60)}:{(entry.timeLeft % 60).toString().padStart(2, '0')}</Text>
+              </View>
             </Animated.View>
           );
         })}
@@ -83,32 +96,56 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
 
   const renderListItem = (entry: ScoreEntry, index: number) => {
     const isPlayer = entry.playerName === playerName;
+    const rank = index + 4;
+    const isRanked = rank <= 5;
+    
     return (
       <Animated.View 
         key={entry.id || index}
-        layout={Layout.spring()}
-        entering={FadeInDown.delay(600 + index * 100)}
+        layout={LinearTransition.springify()}
+        entering={FadeIn.delay(600 + index * 100)}
         style={[styles.listItem, isPlayer && styles.listItemPlayer]}
       >
-        <Text style={styles.listRank}>{index + 4}</Text>
+        <Text style={styles.listRank}>
+          {isRanked ? rank : '-'}
+        </Text>
         <View style={styles.listAvatar}>
            <Text style={styles.listAvatarText}>{entry.playerName[0].toUpperCase()}</Text>
         </View>
-        <Text style={styles.listName}>{entry.playerName}</Text>
-        <Text style={styles.listScore}>{entry.score}</Text>
+        <View style={styles.listNameContainer}>
+          <Text style={styles.listName}>{entry.playerName}</Text>
+          <Text style={styles.listDetails}>{entry.moves} Hamle • {Math.floor(entry.timeLeft / 60)}:{(entry.timeLeft % 60).toString().padStart(2, '0')}</Text>
+        </View>
+        <Text style={styles.listScore}>{entry.score.toLocaleString()}</Text>
       </Animated.View>
     );
   };
 
   return (
-    <View style={styles.container}>
-      <Animated.View entering={FadeIn} style={styles.modalContent}>
+    <Animated.View entering={FadeIn.duration(300)} style={styles.container}>
+      <Animated.View 
+        entering={SlideInUp.springify().damping(15).duration(800)} 
+        style={styles.modalContent}
+      >
         <Text style={styles.title}>TEBRİKLER!</Text>
         <Text style={styles.subtitle}>Bölüm {levelIndex} Tamamlandı</Text>
 
         <View style={styles.scoreHighlight}>
-            <Text style={styles.scoreLabel}>PUANIN</Text>
-            <Text style={styles.scoreValue}>{currentScore}</Text>
+            <View style={styles.scoreDetailRow}>
+              <View style={styles.scoreDetailItem}>
+                <Text style={styles.scoreDetailLabel}>SÜRE</Text>
+                <Text style={styles.scoreDetailValue}>{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</Text>
+              </View>
+              <View style={styles.scoreDetailDivider} />
+              <View style={styles.scoreDetailItem}>
+                <Text style={styles.scoreDetailLabel}>HAMLE</Text>
+                <Text style={styles.scoreDetailValue}>{moves}</Text>
+              </View>
+            </View>
+            <View style={styles.scoreMainRow}>
+              <Text style={styles.scoreLabel}>TOPLAM PUAN</Text>
+              <Text style={styles.scoreValue}>{currentScore.toLocaleString()}</Text>
+            </View>
         </View>
 
         {loading ? (
@@ -132,7 +169,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
           </TouchableOpacity>
         </View>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 };
 
@@ -142,16 +179,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15,23,42,0.95)',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingBottom: 120, // Increased for better clearance
     zIndex: 3000,
   },
   modalContent: {
-    width: '90%',
+    width: '92%',
     backgroundColor: THEME.colors.surface,
-    borderRadius: 32,
+    borderRadius: 36,
     padding: 24,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 20,
   },
   title: {
     fontSize: 32,
@@ -179,9 +222,41 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   scoreValue: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: '900',
+    color: THEME.colors.primary,
+  },
+  scoreDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+    gap: 20,
+  },
+  scoreDetailItem: {
+    alignItems: 'center',
+  },
+  scoreDetailLabel: {
+    fontSize: 8,
+    color: THEME.colors.secondary,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  scoreDetailValue: {
+    fontSize: 18,
     color: THEME.colors.text,
+    fontWeight: '900',
+  },
+  scoreDetailDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  scoreMainRow: {
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+    paddingTop: 10,
+    width: '100%',
   },
   podiumContainer: {
     flexDirection: 'row',
@@ -192,43 +267,50 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   podiumStep: {
-    width: (width * 0.8) / 3,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderTopLeftRadius: 12,
-    borderTopRightRadius: 12,
+    width: (width * 0.8) / 3.2,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     alignItems: 'center',
-    paddingTop: 40,
+    paddingTop: 45,
     position: 'relative',
+    marginHorizontal: 4,
+  },
+  podiumInfo: {
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 4,
+    marginTop: 10,
   },
   podiumEmpty: {
-    width: (width * 0.8) / 3,
+    width: (width * 0.8) / 3.2,
+    marginHorizontal: 4,
   },
   podiumFirst: {
-    height: 140,
-    backgroundColor: 'rgba(251, 191, 36, 0.1)',
-    borderColor: '#FBBF24',
-    borderWidth: 1,
+    height: 160,
+    backgroundColor: 'rgba(251, 191, 36, 0.08)',
+    borderWidth: 2,
     zIndex: 2,
+    elevation: 10,
   },
   podiumSecond: {
-    height: 110,
-    backgroundColor: 'rgba(148, 163, 184, 0.1)',
-    borderColor: '#94A3B8',
-    borderWidth: 1,
+    height: 130,
+    backgroundColor: 'rgba(148, 163, 184, 0.08)',
+    borderWidth: 1.5,
   },
   podiumThird: {
-    height: 90,
-    backgroundColor: 'rgba(217, 119, 6, 0.1)',
-    borderColor: '#D97706',
-    borderWidth: 1,
+    height: 110,
+    backgroundColor: 'rgba(217, 119, 6, 0.08)',
+    borderWidth: 1.5,
   },
   podiumPlayer: {
-    backgroundColor: THEME.colors.primary + '22',
+    backgroundColor: THEME.colors.primary + '15',
     borderColor: THEME.colors.primary,
+    borderWidth: 2,
   },
   avatarContainer: {
     position: 'absolute',
-    top: -30,
+    top: -35,
     alignItems: 'center',
   },
   avatar: {
@@ -273,9 +355,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   podiumScore: {
+    color: THEME.colors.primary,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  podiumDetails: {
+    color: THEME.colors.secondary,
+    fontSize: 8,
+    fontWeight: 'bold',
+  },
+  listNameContainer: {
+    flex: 1,
+  },
+  listDetails: {
     color: THEME.colors.secondary,
     fontSize: 10,
-    fontWeight: 'bold',
   },
   listContainer: {
     width: '100%',

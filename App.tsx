@@ -9,10 +9,10 @@ import { Plate } from './src/components/Plate';
 import { Screw } from './src/components/Screw';
 import { Hole } from './src/components/Hole';
 import { Undo2, HelpCircle, Trophy, RotateCcw, Play, Pause, Map as MapIcon, Home } from 'lucide-react-native';
-import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutLeft } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, FadeInDown, SlideInRight, SlideOutLeft } from 'react-native-reanimated';
 import { LevelMap } from './src/components/LevelMap';
 import { Scoreboard } from './src/components/Scoreboard';
-import { saveScore } from './src/lib/firebaseService';
+import { saveScore, migrateScores, isNicknameAvailable } from './src/lib/firebaseService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TextInput } from 'react-native-gesture-handler';
 
@@ -24,6 +24,8 @@ export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [playerName, setPlayerName] = useState('');
   const [showNicknamePrompt, setShowNicknamePrompt] = useState(false);
+  const [isCheckingNick, setIsCheckingNick] = useState(false);
+  const [nickError, setNickError] = useState('');
   const [showScoreboard, setShowScoreboard] = useState(false);
   const lastBackPress = useRef<number>(0);
   const shownTutorials = useRef<Set<number>>(new Set());
@@ -38,6 +40,19 @@ export default function App() {
       }
     };
     checkNickname();
+  }, []);
+
+  useEffect(() => {
+    const runMigration = async () => {
+      const isMigrated = await AsyncStorage.getItem('@scores_migrated');
+      if (!isMigrated) {
+        const success = await migrateScores();
+        if (success) {
+          await AsyncStorage.setItem('@scores_migrated', 'true');
+        }
+      }
+    };
+    runMigration();
   }, []);
 
   useEffect(() => {
@@ -387,22 +402,39 @@ export default function App() {
           <Text style={styles.modalTitle}>HOŞ GELDİN!</Text>
           <Text style={styles.modalSubtitle}>Sıralamalarda görünmek için bir takma ad seç.</Text>
           <TextInput
-            style={styles.nicknameInput}
+            style={[styles.nicknameInput, nickError ? { borderColor: '#ef4444' } : {}]}
             placeholder="Takma adın..."
             placeholderTextColor={THEME.colors.secondary}
             value={playerName}
-            onChangeText={setPlayerName}
+            onChangeText={(text) => {
+              setPlayerName(text);
+              setNickError('');
+            }}
             maxLength={15}
+            autoCapitalize="none"
+            autoCorrect={false}
           />
+          {nickError ? <Text style={styles.errorText}>{nickError}</Text> : null}
           <TouchableOpacity 
-            style={[styles.modalButton, !playerName && { opacity: 0.5 }]} 
-            disabled={!playerName}
+            style={[styles.modalButton, (!playerName || isCheckingNick) && { opacity: 0.5 }]} 
+            disabled={!playerName || isCheckingNick}
             onPress={async () => {
-              await AsyncStorage.setItem('@player_nickname', playerName);
-              setShowNicknamePrompt(false);
+              setIsCheckingNick(true);
+              setNickError('');
+              
+              const available = await isNicknameAvailable(playerName);
+              if (available) {
+                await AsyncStorage.setItem('@player_nickname', playerName);
+                setShowNicknamePrompt(false);
+              } else {
+                setNickError('Bu takma ad zaten alınmış.');
+              }
+              setIsCheckingNick(false);
             }}
           >
-            <Text style={styles.modalButtonText}>KAYDET</Text>
+            <Text style={styles.modalButtonText}>
+              {isCheckingNick ? 'KONTROL EDİLİYOR...' : 'KAYDET'}
+            </Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -429,7 +461,9 @@ export default function App() {
         {showScoreboard && (
           <Scoreboard 
             levelIndex={state.levelIndex}
-            currentScore={(state.timeLeft * 100) - (state.moves * 10)}
+            currentScore={Math.floor(state.timeLeft * (1000 / Math.max(1, state.moves)))}
+            moves={state.moves}
+            timeLeft={state.timeLeft}
             playerName={playerName}
             onNext={() => {
               setShowScoreboard(false);
@@ -689,19 +723,25 @@ const styles = StyleSheet.create({
   },
   modalButtonText: {
     color: '#fff',
+    fontSize: 18,
     fontWeight: 'bold',
-    fontSize: 16,
   },
   nicknameInput: {
     width: '100%',
     backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 16,
-    padding: 15,
-    color: THEME.colors.text,
-    fontSize: 18,
-    textAlign: 'center',
-    marginBottom: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-  }
+    borderRadius: 16,
+    padding: 15,
+    color: '#fff',
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 12,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
 });

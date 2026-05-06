@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions } from
 import { THEME } from '../constants/theme';
 import { Lock, Star, Trophy, ChevronLeft } from 'lucide-react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
-import { getPlayerBestRank } from '../lib/firebaseService';
+import { getPlayerRanks } from '../lib/firebaseService';
 
 const { width } = Dimensions.get('window');
 
@@ -20,13 +20,8 @@ export const LevelMap: React.FC<LevelMapProps> = ({ currentLevel, playerName, on
 
   useEffect(() => {
     const fetchRanks = async () => {
-      const rankData: Record<number, number> = {};
-      // Fetch ranks for the last few levels to avoid too many requests
-      // In a real app, you might fetch this differently or only on demand
-      for (let i = 1; i <= currentLevel; i++) {
-        const rank = await getPlayerBestRank(i, playerName);
-        if (rank !== -1) rankData[i] = rank;
-      }
+      if (!playerName) return;
+      const rankData = await getPlayerRanks(playerName);
       setRanks(rankData);
     };
     fetchRanks();
