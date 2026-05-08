@@ -29,26 +29,40 @@ export const generateLevel = (levelIndex: number): GameState => {
   const holesArray = Object.values(holes);
   const usedHoleIds = new Set<string>();
 
-  // 3. Create Plates
+  // 3. Determine required empty holes for solvability
+  const maxPossiblePlateSize = levelIndex < 5 ? 3 : (levelIndex < 15 ? 4 : 5);
+  const requiredEmptyCount = Math.max(maxPossiblePlateSize, 5 - Math.floor(levelIndex / 15));
+  
+  const allHoleIds = Object.keys(holes);
+  const shuffledHoleIds = [...allHoleIds].sort(() => Math.random() - 0.5);
+  const mandatoryEmptyHoleIds = shuffledHoleIds.slice(0, requiredEmptyCount);
+  const mandatorySet = new Set(mandatoryEmptyHoleIds);
+
+  // 4. Create Plates
   let maxGeneratedPlateSize = 2;
   for (let i = 0; i < numPlates; i++) {
     const plateId = `p${i}`;
     const plateHoleIds: string[] = [];
     
-    // Pick a starting hole that isn't too crowded
+    // Pick a starting hole that isn't too crowded and isn't reserved
     let startHole = holesArray[Math.floor(Math.random() * holesArray.length)];
     let attempts = 0;
-    while (usedHoleIds.has(startHole.id) && attempts < 50) {
+    while ((usedHoleIds.has(startHole.id) || mandatorySet.has(startHole.id)) && attempts < 50) {
       startHole = holesArray[Math.floor(Math.random() * holesArray.length)];
       attempts++;
+    }
+
+    // If we still hit a reserved hole after many attempts, try to find ANY non-reserved hole
+    if (mandatorySet.has(startHole.id)) {
+      const nonReserved = holesArray.find(h => !mandatorySet.has(h.id) && !usedHoleIds.has(h.id));
+      if (nonReserved) startHole = nonReserved;
     }
 
     plateHoleIds.push(startHole.id);
     usedHoleIds.add(startHole.id);
 
     // Expand plate to 2-5 holes (larger plates in higher levels)
-    const maxPlateSize = levelIndex < 5 ? 3 : (levelIndex < 15 ? 4 : 5);
-    const plateSize = 2 + Math.floor(Math.random() * (maxPlateSize - 1));
+    const plateSize = 2 + Math.floor(Math.random() * (maxPossiblePlateSize - 1));
     maxGeneratedPlateSize = Math.max(maxGeneratedPlateSize, plateSize);
     for (let j = 1; j < plateSize; j++) {
       const lastHoleId = plateHoleIds[plateHoleIds.length - 1];
@@ -59,12 +73,15 @@ export const generateLevel = (levelIndex: number): GameState => {
 
       const neighbors = [
         `h_${r+1}_${c}`, `h_${r-1}_${c}`, `h_${r}_${c+1}`, `h_${r}_${c-1}`
-      ].filter(id => holes[id] && !plateHoleIds.includes(id));
+      ].filter(id => holes[id] && !plateHoleIds.includes(id) && !mandatorySet.has(id));
 
       if (neighbors.length > 0) {
         const nextId = neighbors[Math.floor(Math.random() * neighbors.length)];
         plateHoleIds.push(nextId);
         usedHoleIds.add(nextId);
+      } else {
+        // If no non-reserved neighbors, we stop expanding this plate
+        break;
       }
     }
 
@@ -108,7 +125,7 @@ export const generateLevel = (levelIndex: number): GameState => {
     });
   }
 
-  // 4. Determine which holes are needed
+  // 5. Determine which holes are needed
   const neededHoleIds = new Set<string>();
   
   // Add holes that are part of plates
@@ -121,17 +138,21 @@ export const generateLevel = (levelIndex: number): GameState => {
     neededHoleIds.add(screw.holeId);
   });
 
-  // 5. Add a few extra empty "strategy" holes
-  const allHoleIds = Object.keys(holes);
+  // 6. Add the mandatory empty holes
+  mandatoryEmptyHoleIds.forEach(id => {
+    neededHoleIds.add(id);
+    // Note: We keep these uncolored to ensure they can accept any screw
+  });
+
+  // 7. Add extra "strategy" holes if space permits
   const remainingHoleIds = allHoleIds.filter(id => !neededHoleIds.has(id));
+  const extraHoleCount = Math.max(0, (5 - Math.floor(levelIndex / 15)) - mandatoryEmptyHoleIds.length);
   
-  // Solvability: At least as many empty holes as the largest plate's screws
-  const stagingHoleCount = Math.max(maxGeneratedPlateSize, 5 - Math.floor(levelIndex / 15)); 
-  for (let i = 0; i < stagingHoleCount && remainingHoleIds.length > 0; i++) {
+  for (let i = 0; i < extraHoleCount && remainingHoleIds.length > 0; i++) {
     const randomIndex = Math.floor(Math.random() * remainingHoleIds.length);
     const selectedId = remainingHoleIds.splice(randomIndex, 1)[0];
     
-    // Level 45+: Assign color to some empty holes
+    // Level 45+: Assign color to some EXTRA empty holes
     if (levelIndex >= 45 && Math.random() > 0.5) {
       holes[selectedId].color = COLORS[Math.floor(Math.random() * COLORS.length)];
     }
