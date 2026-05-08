@@ -137,7 +137,7 @@ export default function App() {
 
         {/* Timer Progress Bar */}
         <View style={styles.timerBarContainer}>
-           <View style={[styles.timerBar, { width: `${(state.timeLeft / 120) * 100}%` }]} />
+           <View style={[styles.timerBar, { width: `${(state.timeLeft / state.initialTime) * 100}%` }]} />
         </View>
 
         {state.insultMessage && (

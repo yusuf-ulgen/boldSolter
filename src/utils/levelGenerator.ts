@@ -166,9 +166,12 @@ export const generateLevel = (levelIndex: number): GameState => {
     filteredHoles[id] = holes[id];
   });
 
+  const initialTime = Math.max(70, 190 - levelIndex * 3);
+  
   return {
     levelIndex,
-    timeLeft: Math.max(90, 210 - levelIndex * 3),
+    initialTime,
+    timeLeft: initialTime,
     isLevelComplete: false,
     isGameOver: false,
     isPaused: false,

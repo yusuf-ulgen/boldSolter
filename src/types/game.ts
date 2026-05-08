@@ -34,6 +34,7 @@ export interface Plate {
 
 export interface GameState {
   levelIndex: number;
+  initialTime: number;
   timeLeft: number;
   isLevelComplete: boolean;
   isGameOver: boolean;
