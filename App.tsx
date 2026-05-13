@@ -8,17 +8,20 @@ import { useGameState } from './src/hooks/useGameState';
 import { Plate } from './src/components/Plate';
 import { Screw } from './src/components/Screw';
 import { Hole } from './src/components/Hole';
-import { Undo2, HelpCircle, Trophy, RotateCcw, Play, Pause, Map as MapIcon, Home } from 'lucide-react-native';
+import { Undo2, HelpCircle, Trophy, RotateCcw, Play, Pause, Map as MapIcon, Home, X, RefreshCw } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, FadeInDown, SlideInRight, SlideOutLeft } from 'react-native-reanimated';
 import { LevelMap } from './src/components/LevelMap';
 import { Scoreboard } from './src/components/Scoreboard';
 import { saveScore, migrateScores, isNicknameAvailable } from './src/lib/firebaseService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TextInput } from 'react-native-gesture-handler';
+import ReleaseNotesScreen from './src/screens/ReleaseNotesScreen';
+import { checkShowReleaseNotes, markReleaseNotesAsShown, redirectToPlayStore, checkForUpdate } from './src/utils/updateManager';
 
 export default function App() {
   const { state, handleHolePress, undo, nextLevel, retryLevel, togglePause, setIsPaused, jumpToLevel } = useGameState();
-  const [currentScreen, setCurrentScreen] = useState<'menu' | 'game' | 'map'>('menu');
+  const [currentScreen, setCurrentScreen] = useState<'menu' | 'game' | 'map' | 'releaseNotes'>('menu');
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showConfirmExit, setShowConfirmExit] = useState(false);
   const [showConfirmRestart, setShowConfirmRestart] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -40,6 +43,23 @@ export default function App() {
       }
     };
     checkNickname();
+  }, []);
+
+  useEffect(() => {
+    const initializeApp = async () => {
+      // Release notes check
+      const shouldShowNotes = await checkShowReleaseNotes();
+      if (shouldShowNotes) {
+        setCurrentScreen('releaseNotes');
+      }
+
+      // Update check
+      const hasUpdate = await checkForUpdate();
+      if (hasUpdate) {
+        setShowUpdateModal(true);
+      }
+    };
+    initializeApp();
   }, []);
 
   useEffect(() => {
@@ -79,6 +99,11 @@ export default function App() {
         } else {
           togglePause();
         }
+        return true;
+      }
+
+      if (currentScreen === 'map' || currentScreen === 'releaseNotes') {
+        setCurrentScreen('menu');
         return true;
       }
       
@@ -446,6 +471,14 @@ export default function App() {
       <SafeAreaProvider>
         {currentScreen === 'menu' && renderMenu()}
         {currentScreen === 'game' && renderGame()}
+        {currentScreen === 'releaseNotes' && (
+          <ReleaseNotesScreen 
+            onContinue={async () => {
+              await markReleaseNotesAsShown();
+              setCurrentScreen('menu');
+            }} 
+          />
+        )}
         {currentScreen === 'map' && (
           <LevelMap 
             currentLevel={state.levelIndex} 
@@ -478,6 +511,39 @@ export default function App() {
         )}
 
         {renderNicknamePrompt()}
+
+        {/* Update Modal */}
+        <Modal visible={showUpdateModal} transparent animationType="fade">
+          <View style={styles.overlay}>
+            <Animated.View entering={FadeInDown} style={styles.modalContent}>
+              <TouchableOpacity 
+                style={styles.closeButton} 
+                onPress={() => setShowUpdateModal(false)}
+              >
+                <X color={THEME.colors.secondary} size={24} />
+              </TouchableOpacity>
+              
+              <View style={styles.updateIconContainer}>
+                <RefreshCw color={THEME.colors.primary} size={40} />
+              </View>
+              
+              <Text style={styles.modalTitle}>GÜNCELLEME VAR!</Text>
+              <Text style={styles.modalSubtitle}>
+                Uygulamanın yeni bir sürümü mevcut. En iyi deneyim için lütfen güncelleyin.
+              </Text>
+              
+              <TouchableOpacity 
+                style={styles.modalButton} 
+                onPress={() => {
+                  redirectToPlayStore();
+                  setShowUpdateModal(false);
+                }}
+              >
+                <Text style={styles.modalButtonText}>ŞİMDİ GÜNCELLE</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+        </Modal>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
@@ -743,5 +809,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 20,
     textAlign: 'center',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    padding: 5,
+  },
+  updateIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.2)',
   },
 });
