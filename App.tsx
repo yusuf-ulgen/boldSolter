@@ -1,4 +1,4 @@
-import { StyleSheet, View, Text, TouchableOpacity, Modal, BackHandler, ToastAndroid, Platform } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Modal, BackHandler, ToastAndroid, Platform, Linking } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -8,7 +8,7 @@ import { useGameState } from './src/hooks/useGameState';
 import { Plate } from './src/components/Plate';
 import { Screw } from './src/components/Screw';
 import { Hole } from './src/components/Hole';
-import { Undo2, HelpCircle, Trophy, RotateCcw, Play, Pause, Map as MapIcon, Home, X, RefreshCw } from 'lucide-react-native';
+import { Undo2, HelpCircle, Trophy, RotateCcw, Play, Pause, Map as MapIcon, Home, X, RefreshCw, LayoutGrid } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, FadeInDown, SlideInRight, SlideOutLeft } from 'react-native-reanimated';
 import { LevelMap } from './src/components/LevelMap';
 import { Scoreboard } from './src/components/Scoreboard';
@@ -30,6 +30,7 @@ export default function App() {
   const [isCheckingNick, setIsCheckingNick] = useState(false);
   const [nickError, setNickError] = useState('');
   const [showScoreboard, setShowScoreboard] = useState(false);
+  const [showDeveloperModal, setShowDeveloperModal] = useState(false);
   const lastBackPress = useRef<number>(0);
   const shownTutorials = useRef<Set<number>>(new Set());
 
@@ -77,9 +78,9 @@ export default function App() {
 
   useEffect(() => {
     if (state.isLevelComplete) {
-       // Save score to Firebase
-       saveScore(state.levelIndex, state.moves, state.timeLeft, playerName);
-       setShowScoreboard(true);
+      // Save score to Firebase
+      saveScore(state.levelIndex, state.moves, state.timeLeft, playerName);
+      setShowScoreboard(true);
     }
   }, [state.isLevelComplete]);
 
@@ -106,13 +107,13 @@ export default function App() {
         setCurrentScreen('menu');
         return true;
       }
-      
+
       const now = Date.now();
       if (lastBackPress.current && (now - lastBackPress.current < 2000)) {
         BackHandler.exitApp();
         return true;
       }
-      
+
       lastBackPress.current = now;
       if (Platform.OS === 'android') {
         ToastAndroid.show('Çıkmak için bir kez daha dokunun', ToastAndroid.SHORT);
@@ -132,281 +133,287 @@ export default function App() {
 
   const renderGame = () => (
     <SafeAreaView style={styles.container}>
-        <StatusBar style="light" />
-        
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <Text style={styles.title} numberOfLines={1}>Bolt Sorter</Text>
-            <View style={styles.levelBadge}>
-              <Text style={styles.levelText}>SEVİYE {state.levelIndex}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.headerCenter}>
-            <View style={[styles.statBox, state.timeLeft < 10 && styles.statBoxUrgent]}>
-              <Text style={styles.statLabel}>SÜRE</Text>
-              <Text style={styles.statValue}>{formatTime(state.timeLeft)}</Text>
-            </View>
-          </View>
+      <StatusBar style="light" />
 
-          <View style={styles.headerRight}>
-            <View style={styles.statBox}>
-              <Text style={styles.statLabel}>HAMLE</Text>
-              <Text style={styles.statValue}>{state.moves}</Text>
-            </View>
-            <TouchableOpacity style={styles.pauseIconButton} onPress={togglePause}>
-              <Pause color={THEME.colors.text} size={20} />
-            </TouchableOpacity>
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.title} numberOfLines={1}>Bolt Sorter</Text>
+          <View style={styles.levelBadge}>
+            <Text style={styles.levelText}>SEVİYE {state.levelIndex}</Text>
           </View>
         </View>
 
-        {/* Timer Progress Bar */}
-        <View style={styles.timerBarContainer}>
-           <View style={[styles.timerBar, { width: `${(state.timeLeft / state.initialTime) * 100}%` }]} />
+        <View style={styles.headerCenter}>
+          <View style={[styles.statBox, state.timeLeft < 10 && styles.statBoxUrgent]}>
+            <Text style={styles.statLabel}>SÜRE</Text>
+            <Text style={styles.statValue}>{formatTime(state.timeLeft)}</Text>
+          </View>
         </View>
 
-        {state.insultMessage && (
-          <Animated.View 
-            entering={FadeIn} 
-            exiting={FadeOut} 
-            style={styles.insultBanner}
-          >
-            <Text style={styles.insultText}>{state.insultMessage}</Text>
-          </Animated.View>
-        )}
+        <View style={styles.headerRight}>
+          <View style={styles.statBox}>
+            <Text style={styles.statLabel}>HAMLE</Text>
+            <Text style={styles.statValue}>{state.moves}</Text>
+          </View>
+          <TouchableOpacity style={styles.pauseIconButton} onPress={togglePause}>
+            <Pause color={THEME.colors.text} size={20} />
+          </TouchableOpacity>
+        </View>
+      </View>
 
-        <View style={styles.board}>
-          {Object.values(state.holes).map(hole => (
-            <Hole
-              key={hole.id}
+      {/* Timer Progress Bar */}
+      <View style={styles.timerBarContainer}>
+        <View style={[styles.timerBar, { width: `${(state.timeLeft / state.initialTime) * 100}%` }]} />
+      </View>
+
+      {state.insultMessage && (
+        <Animated.View
+          entering={FadeIn}
+          exiting={FadeOut}
+          style={styles.insultBanner}
+        >
+          <Text style={styles.insultText}>{state.insultMessage}</Text>
+        </Animated.View>
+      )}
+
+      <View style={styles.board}>
+        {Object.values(state.holes).map(hole => (
+          <Hole
+            key={hole.id}
+            x={hole.x}
+            y={hole.y}
+            isSelected={state.selectedScrewId === hole.screwId}
+            isAvailable={!!state.selectedScrewId && !hole.screwId}
+            onPress={() => handleHolePress(hole.id)}
+          />
+        ))}
+
+        {Object.values(state.plates).map(plate => (
+          <Plate
+            key={plate.id}
+            color={plate.color}
+            zIndex={plate.zIndex}
+            isRemoved={plate.isRemoved}
+            attachedScrewCount={plate.holeIds.filter(hId => !!state.holes[hId].screwId).length}
+            shapePoints={plate.shapePoints}
+          />
+        ))}
+
+        {Object.values(state.screws).map(screw => {
+          const hole = state.holes[screw.holeId];
+          return (
+            <Screw
+              key={screw.id}
+              color={screw.color}
               x={hole.x}
               y={hole.y}
-              isSelected={state.selectedScrewId === hole.screwId}
-              isAvailable={!!state.selectedScrewId && !hole.screwId}
-              onPress={() => handleHolePress(hole.id)}
+              isMystery={screw.isMystery}
+              mechanic={screw.mechanic}
+              durability={screw.durability}
+              isSelected={state.selectedScrewId === screw.id}
             />
-          ))}
+          );
+        })}
+      </View>
 
-          {Object.values(state.plates).map(plate => (
-            <Plate
-              key={plate.id}
-              color={plate.color}
-              zIndex={plate.zIndex}
-              isRemoved={plate.isRemoved}
-              attachedScrewCount={plate.holeIds.filter(hId => !!state.holes[hId].screwId).length}
-              shapePoints={plate.shapePoints}
-            />
-          ))}
+      <View style={styles.footer}>
+        <TouchableOpacity style={styles.actionButton} onPress={undo}>
+          <Undo2 color={THEME.colors.text} size={20} />
+          <Text style={styles.actionButtonText}>GERİ AL</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionButton} onPress={retryLevel}>
+          <RotateCcw color={THEME.colors.text} size={20} />
+          <Text style={styles.actionButtonText}>TEKRAR</Text>
+        </TouchableOpacity>
+      </View>
 
-          {Object.values(state.screws).map(screw => {
-            const hole = state.holes[screw.holeId];
-            return (
-              <Screw
-                key={screw.id}
-                color={screw.color}
-                x={hole.x}
-                y={hole.y}
-                isMystery={screw.isMystery}
-                mechanic={screw.mechanic}
-                durability={screw.durability}
-                isSelected={state.selectedScrewId === screw.id}
-              />
-            );
-          })}
-        </View>
+      {/* Win Overlay */}
+      {state.isLevelComplete && (
+        <Animated.View entering={FadeIn} style={styles.overlay}>
+          <Animated.View entering={FadeIn} style={styles.modalContent}>
+            <Trophy color="#FBBF24" size={60} />
+            <Text style={styles.modalTitle}>HARİKA!</Text>
+            <Text style={styles.modalSubtitle}>Seviye {state.levelIndex} tamamlandı.</Text>
+            <TouchableOpacity style={styles.modalButton} onPress={nextLevel}>
+              <Play color="#fff" size={20} fill="#fff" />
+              <Text style={styles.modalButtonText}>SIRADAKİ</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]}
+              onPress={() => {
+                nextLevel();
+                setCurrentScreen('menu');
+              }}
+            >
+              <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>ANA MENÜ</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      )}
 
-        <View style={styles.footer}>
-           <TouchableOpacity style={styles.actionButton} onPress={undo}>
-              <Undo2 color={THEME.colors.text} size={20} />
-              <Text style={styles.actionButtonText}>GERİ AL</Text>
-           </TouchableOpacity>
-           <TouchableOpacity style={styles.actionButton} onPress={retryLevel}>
+      {/* Game Over Overlay */}
+      {state.isGameOver && (
+        <Animated.View entering={FadeIn} style={[styles.overlay, { backgroundColor: 'rgba(239,68,68,0.2)' }]}>
+          <Animated.View entering={FadeIn} style={styles.modalContent}>
+            <Text style={styles.modalEmoji}>💀</Text>
+            <Text style={styles.modalTitle}>SÜRE DOLDU!</Text>
+            <Text style={styles.modalSubtitle}>{state.insultMessage || "Hadi ama, biraz daha hızlı!"}</Text>
+            <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#EF4444' }]} onPress={retryLevel}>
+              <RotateCcw color="#fff" size={20} />
+              <Text style={styles.modalButtonText}>TEKRAR DENE</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]}
+              onPress={() => {
+                retryLevel();
+                setCurrentScreen('menu');
+              }}
+            >
+              <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>ANA MENÜ</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      )}
+
+      {/* Pause Overlay */}
+      {state.isPaused && !showConfirmExit && !showConfirmRestart && (
+        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
+          <Animated.View entering={FadeIn} style={styles.modalContent}>
+            <Pause color={THEME.colors.primary} size={60} />
+            <Text style={styles.modalTitle}>OYUN DURAKLATILDI</Text>
+
+            <TouchableOpacity style={styles.modalButton} onPress={togglePause}>
+              <Play color="#fff" size={20} fill="#fff" />
+              <Text style={styles.modalButtonText}>DEVAM ET</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]}
+              onPress={() => setShowConfirmRestart(true)}
+            >
               <RotateCcw color={THEME.colors.text} size={20} />
-              <Text style={styles.actionButtonText}>TEKRAR</Text>
-           </TouchableOpacity>
-        </View>
+              <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>TEKRAR BAŞLA</Text>
+            </TouchableOpacity>
 
-        {/* Win Overlay */}
-        {state.isLevelComplete && (
-          <Animated.View entering={FadeIn} style={styles.overlay}>
-             <Animated.View entering={FadeIn} style={styles.modalContent}>
-                <Trophy color="#FBBF24" size={60} />
-                <Text style={styles.modalTitle}>HARİKA!</Text>
-                <Text style={styles.modalSubtitle}>Seviye {state.levelIndex} tamamlandı.</Text>
-                <TouchableOpacity style={styles.modalButton} onPress={nextLevel}>
-                   <Play color="#fff" size={20} fill="#fff" />
-                   <Text style={styles.modalButtonText}>SIRADAKİ</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                   style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
-                   onPress={() => {
-                     nextLevel();
-                     setCurrentScreen('menu');
-                   }}
-                >
-                   <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>ANA MENÜ</Text>
-                </TouchableOpacity>
-             </Animated.View>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]}
+              onPress={() => setShowConfirmExit(true)}
+            >
+              <Home color={THEME.colors.text} size={20} />
+              <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>ANA MENÜYE DÖN</Text>
+            </TouchableOpacity>
           </Animated.View>
-        )}
+        </Animated.View>
+      )}
 
-        {/* Game Over Overlay */}
-        {state.isGameOver && (
-          <Animated.View entering={FadeIn} style={[styles.overlay, { backgroundColor: 'rgba(239,68,68,0.2)' }]}>
-             <Animated.View entering={FadeIn} style={styles.modalContent}>
-                <Text style={styles.modalEmoji}>💀</Text>
-                <Text style={styles.modalTitle}>SÜRE DOLDU!</Text>
-                <Text style={styles.modalSubtitle}>{state.insultMessage || "Hadi ama, biraz daha hızlı!"}</Text>
-                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#EF4444' }]} onPress={retryLevel}>
-                   <RotateCcw color="#fff" size={20} />
-                   <Text style={styles.modalButtonText}>TEKRAR DENE</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                   style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
-                   onPress={() => {
-                     retryLevel();
-                     setCurrentScreen('menu');
-                   }}
-                >
-                   <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>ANA MENÜ</Text>
-                </TouchableOpacity>
-             </Animated.View>
+      {/* Confirm Restart Overlay */}
+      {showConfirmRestart && (
+        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
+          <Animated.View entering={FadeIn} style={styles.modalContent}>
+            <RotateCcw color={THEME.colors.primary} size={60} />
+            <Text style={styles.modalTitle}>EMİN MİSİNİZ?</Text>
+            <Text style={styles.modalSubtitle}>Bölüme en baştan başlanacak.</Text>
+            <TouchableOpacity style={[styles.modalButton, { backgroundColor: THEME.colors.primary }]} onPress={() => {
+              retryLevel();
+              setShowConfirmRestart(false);
+              setIsPaused(false);
+            }}>
+              <Text style={styles.modalButtonText}>YENİDEN BAŞLAT</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]}
+              onPress={() => setShowConfirmRestart(false)}
+            >
+              <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>İPTAL</Text>
+            </TouchableOpacity>
           </Animated.View>
-        )}
+        </Animated.View>
+      )}
 
-        {/* Pause Overlay */}
-        {state.isPaused && !showConfirmExit && !showConfirmRestart && (
-          <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
-             <Animated.View entering={FadeIn} style={styles.modalContent}>
-                <Pause color={THEME.colors.primary} size={60} />
-                <Text style={styles.modalTitle}>OYUN DURAKLATILDI</Text>
-                
-                <TouchableOpacity style={styles.modalButton} onPress={togglePause}>
-                   <Play color="#fff" size={20} fill="#fff" />
-                   <Text style={styles.modalButtonText}>DEVAM ET</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                   style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
-                   onPress={() => setShowConfirmRestart(true)}
-                >
-                   <RotateCcw color={THEME.colors.text} size={20} />
-                   <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>TEKRAR BAŞLA</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                   style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
-                   onPress={() => setShowConfirmExit(true)}
-                >
-                   <Home color={THEME.colors.text} size={20} />
-                   <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>ANA MENÜYE DÖN</Text>
-                </TouchableOpacity>
-             </Animated.View>
+      {/* Confirm Exit Overlay */}
+      {showConfirmExit && (
+        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
+          <Animated.View entering={FadeIn} style={styles.modalContent}>
+            <HelpCircle color="#EF4444" size={60} />
+            <Text style={styles.modalTitle}>EMİN MİSİNİZ?</Text>
+            <Text style={styles.modalSubtitle}>Mevcut ilerlemeniz kaybolacak.</Text>
+            <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#EF4444' }]} onPress={() => {
+              setShowConfirmExit(false);
+              setIsPaused(false);
+              setCurrentScreen('menu');
+            }}>
+              <Text style={styles.modalButtonText}>ÇIK</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]}
+              onPress={() => setShowConfirmExit(false)}
+            >
+              <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>İPTAL</Text>
+            </TouchableOpacity>
           </Animated.View>
-        )}
+        </Animated.View>
+      )}
 
-        {/* Confirm Restart Overlay */}
-        {showConfirmRestart && (
-          <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
-             <Animated.View entering={FadeIn} style={styles.modalContent}>
-                <RotateCcw color={THEME.colors.primary} size={60} />
-                <Text style={styles.modalTitle}>EMİN MİSİNİZ?</Text>
-                <Text style={styles.modalSubtitle}>Bölüme en baştan başlanacak.</Text>
-                <TouchableOpacity style={[styles.modalButton, { backgroundColor: THEME.colors.primary }]} onPress={() => {
-                  retryLevel();
-                  setShowConfirmRestart(false);
-                  setIsPaused(false);
-                }}>
-                   <Text style={styles.modalButtonText}>YENİDEN BAŞLAT</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                   style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
-                   onPress={() => setShowConfirmRestart(false)}
-                >
-                   <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>İPTAL</Text>
-                </TouchableOpacity>
-             </Animated.View>
+      {/* Tutorial Overlay */}
+      {showTutorial && (
+        <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
+          <Animated.View entering={FadeIn} style={styles.modalContent}>
+            <View style={{ marginBottom: 25, height: 70, justifyContent: 'center', alignItems: 'center' }}>
+              {state.levelIndex === 1 && <Screw x={0} y={0} color="red" isStatic />}
+              {state.levelIndex === 4 && <Screw x={0} y={0} color="red" isMystery isStatic />}
+              {state.levelIndex === 15 && <Screw x={0} y={0} color="blue" mechanic="icy" durability={3} isStatic />}
+              {state.levelIndex === 30 && <Screw x={0} y={0} color="green" mechanic="oily" isStatic />}
+              {state.levelIndex === 45 && <Hole x={0} y={0} color="yellow" isStatic />}
+            </View>
+            <Text style={styles.modalTitle}>
+              {state.levelIndex === 1 ? "NASIL OYNANIR?" : "YENİ ÖZELLİK!"}
+            </Text>
+            <Text style={styles.modalSubtitle}>
+              {state.levelIndex === 1 && "Vidaları boş deliklere taşıyarak üzerlerindeki plakaları düşürmeye çalış! Tüm plakalar düştüğünde kazanırsın."}
+              {state.levelIndex === 4 && "GİZEMLİ VİDALAR! Gri renkte parıldayan bu vidaların gerçek rengini sadece yerlerini değiştirdiğinde görebilirsin. Stratejini ona göre kur!"}
+              {state.levelIndex === 15 && "BUZLU VİDALAR! Bu vidalar donmuş durumda. Onları seçebilmek için üzerlerine birkaç kez tıklayarak buzu kırmalısın!"}
+              {state.levelIndex === 30 && "YAĞLI VİDALAR! Bazı vidalar çok kaygan. Onları taşırken elinden kayıp eski yerlerine dönebilirler, dikkatli ol!"}
+              {state.levelIndex === 45 && "RENKLİ DELİKLER! Bazı deliklerin etrafında renkli halkalar var. Bu deliklere sadece aynı renkteki vidaları takabilirsin!"}
+            </Text>
+            <TouchableOpacity style={styles.modalButton} onPress={() => setShowTutorial(false)}>
+              <Text style={styles.modalButtonText}>ANLADIM</Text>
+            </TouchableOpacity>
           </Animated.View>
-        )}
-
-        {/* Confirm Exit Overlay */}
-        {showConfirmExit && (
-          <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
-             <Animated.View entering={FadeIn} style={styles.modalContent}>
-                <HelpCircle color="#EF4444" size={60} />
-                <Text style={styles.modalTitle}>EMİN MİSİNİZ?</Text>
-                <Text style={styles.modalSubtitle}>Mevcut ilerlemeniz kaybolacak.</Text>
-                <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#EF4444' }]} onPress={() => {
-                  setShowConfirmExit(false);
-                  setIsPaused(false);
-                  setCurrentScreen('menu');
-                }}>
-                   <Text style={styles.modalButtonText}>ÇIK</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                   style={[styles.modalButton, { backgroundColor: THEME.colors.surface, marginTop: 12 }]} 
-                   onPress={() => setShowConfirmExit(false)}
-                >
-                   <Text style={[styles.modalButtonText, { color: THEME.colors.text }]}>İPTAL</Text>
-                </TouchableOpacity>
-             </Animated.View>
-          </Animated.View>
-        )}
-
-        {/* Tutorial Overlay */}
-        {showTutorial && (
-          <Animated.View entering={FadeIn} exiting={FadeOut} style={styles.overlay}>
-             <Animated.View entering={FadeIn} style={styles.modalContent}>
-             <View style={{ marginBottom: 25, height: 70, justifyContent: 'center', alignItems: 'center' }}>
-                {state.levelIndex === 1 && <Screw x={0} y={0} color="red" isStatic />}
-                {state.levelIndex === 4 && <Screw x={0} y={0} color="red" isMystery isStatic />}
-                {state.levelIndex === 15 && <Screw x={0} y={0} color="blue" mechanic="icy" durability={3} isStatic />}
-                {state.levelIndex === 30 && <Screw x={0} y={0} color="green" mechanic="oily" isStatic />}
-                {state.levelIndex === 45 && <Hole x={0} y={0} color="yellow" isStatic />}
-             </View>
-                <Text style={styles.modalTitle}>
-                  {state.levelIndex === 1 ? "NASIL OYNANIR?" : "YENİ ÖZELLİK!"}
-                </Text>
-                <Text style={styles.modalSubtitle}>
-                  {state.levelIndex === 1 && "Vidaları boş deliklere taşıyarak üzerlerindeki plakaları düşürmeye çalış! Tüm plakalar düştüğünde kazanırsın."}
-                  {state.levelIndex === 4 && "GİZEMLİ VİDALAR! Gri renkte parıldayan bu vidaların gerçek rengini sadece yerlerini değiştirdiğinde görebilirsin. Stratejini ona göre kur!"}
-                  {state.levelIndex === 15 && "BUZLU VİDALAR! Bu vidalar donmuş durumda. Onları seçebilmek için üzerlerine birkaç kez tıklayarak buzu kırmalısın!"}
-                  {state.levelIndex === 30 && "YAĞLI VİDALAR! Bazı vidalar çok kaygan. Onları taşırken elinden kayıp eski yerlerine dönebilirler, dikkatli ol!"}
-                  {state.levelIndex === 45 && "RENKLİ DELİKLER! Bazı deliklerin etrafında renkli halkalar var. Bu deliklere sadece aynı renkteki vidaları takabilirsin!"}
-                </Text>
-                <TouchableOpacity style={styles.modalButton} onPress={() => setShowTutorial(false)}>
-                   <Text style={styles.modalButtonText}>ANLADIM</Text>
-                </TouchableOpacity>
-             </Animated.View>
-          </Animated.View>
-        )}
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 
   const renderMenu = () => (
     <SafeAreaView style={styles.menuContainer}>
       <StatusBar style="light" />
+      <TouchableOpacity
+        style={styles.developerButton}
+        onPress={() => setShowDeveloperModal(true)}
+      >
+        <LayoutGrid color={THEME.colors.primary} size={24} />
+      </TouchableOpacity>
       <View style={styles.menuContent}>
         <Animated.View entering={FadeIn.delay(200)} style={styles.menuHeader}>
           <Text style={styles.menuTitle}>BOLT</Text>
           <Text style={[styles.menuTitle, { color: THEME.colors.primary }]}>SORTER</Text>
         </Animated.View>
-        
+
         <Animated.View entering={FadeIn.delay(400)} style={styles.menuStats}>
-           <Text style={styles.menuSubtitle}>EN YÜKSEK SEVİYE: {state.levelIndex}</Text>
+          <Text style={styles.menuSubtitle}>EN YÜKSEK SEVİYE: {state.levelIndex}</Text>
         </Animated.View>
 
         <Animated.View entering={FadeIn.delay(600)} style={styles.menuButtons}>
-          <TouchableOpacity 
-            style={styles.playButton} 
+          <TouchableOpacity
+            style={styles.playButton}
             onPress={() => setCurrentScreen('game')}
           >
             <Play color="#fff" size={32} fill="#fff" />
             <Text style={styles.playButtonText}>OYNA</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.playButton, { backgroundColor: THEME.colors.surface, marginTop: 15 }]} 
+          <TouchableOpacity
+            style={[styles.playButton, { backgroundColor: THEME.colors.surface, marginTop: 15 }]}
             onPress={() => setCurrentScreen('map')}
           >
             <MapIcon color={THEME.colors.text} size={28} />
@@ -440,13 +447,13 @@ export default function App() {
             autoCorrect={false}
           />
           {nickError ? <Text style={styles.errorText}>{nickError}</Text> : null}
-          <TouchableOpacity 
-            style={[styles.modalButton, (!playerName || isCheckingNick) && { opacity: 0.5 }]} 
+          <TouchableOpacity
+            style={[styles.modalButton, (!playerName || isCheckingNick) && { opacity: 0.5 }]}
             disabled={!playerName || isCheckingNick}
             onPress={async () => {
               setIsCheckingNick(true);
               setNickError('');
-              
+
               const available = await isNicknameAvailable(playerName);
               if (available) {
                 await AsyncStorage.setItem('@player_nickname', playerName);
@@ -472,16 +479,16 @@ export default function App() {
         {currentScreen === 'menu' && renderMenu()}
         {currentScreen === 'game' && renderGame()}
         {currentScreen === 'releaseNotes' && (
-          <ReleaseNotesScreen 
+          <ReleaseNotesScreen
             onContinue={async () => {
               await markReleaseNotesAsShown();
               setCurrentScreen('menu');
-            }} 
+            }}
           />
         )}
         {currentScreen === 'map' && (
-          <LevelMap 
-            currentLevel={state.levelIndex} 
+          <LevelMap
+            currentLevel={state.levelIndex}
             playerName={playerName}
             onSelectLevel={(level) => {
               jumpToLevel(level);
@@ -490,9 +497,9 @@ export default function App() {
             onBack={() => setCurrentScreen('menu')}
           />
         )}
-        
+
         {showScoreboard && (
-          <Scoreboard 
+          <Scoreboard
             levelIndex={state.levelIndex}
             currentScore={Math.floor(state.timeLeft * (1000 / Math.max(1, state.moves)))}
             moves={state.moves}
@@ -516,24 +523,24 @@ export default function App() {
         <Modal visible={showUpdateModal} transparent animationType="fade">
           <View style={styles.overlay}>
             <Animated.View entering={FadeInDown} style={styles.modalContent}>
-              <TouchableOpacity 
-                style={styles.closeButton} 
+              <TouchableOpacity
+                style={styles.closeButton}
                 onPress={() => setShowUpdateModal(false)}
               >
                 <X color={THEME.colors.secondary} size={24} />
               </TouchableOpacity>
-              
+
               <View style={styles.updateIconContainer}>
                 <RefreshCw color={THEME.colors.primary} size={40} />
               </View>
-              
+
               <Text style={styles.modalTitle}>GÜNCELLEME VAR!</Text>
               <Text style={styles.modalSubtitle}>
                 Uygulamanın yeni bir sürümü mevcut. En iyi deneyim için lütfen güncelleyin.
               </Text>
-              
-              <TouchableOpacity 
-                style={styles.modalButton} 
+
+              <TouchableOpacity
+                style={styles.modalButton}
                 onPress={() => {
                   redirectToPlayStore();
                   setShowUpdateModal(false);
@@ -541,6 +548,40 @@ export default function App() {
               >
                 <Text style={styles.modalButtonText}>ŞİMDİ GÜNCELLE</Text>
               </TouchableOpacity>
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* Developer Modal */}
+        <Modal visible={showDeveloperModal} transparent animationType="fade">
+          <View style={styles.overlay}>
+            <Animated.View entering={FadeInDown} style={styles.modalContent}>
+              <View style={[styles.updateIconContainer, { backgroundColor: THEME.colors.primary + '22' }]}>
+                <LayoutGrid color={THEME.colors.primary} size={40} />
+              </View>
+
+              <Text style={styles.modalTitle}>BU OYUNU BEĞENDİNİZ Mİ?</Text>
+              <Text style={styles.modalSubtitle}>
+                Yapımcının diğer içeriklerine ve oyunlarına göz atmak ister misiniz?
+              </Text>
+
+              <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+                <TouchableOpacity
+                  style={[styles.modalButton, { flex: 1, paddingHorizontal: 10, backgroundColor: THEME.colors.surface, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }]}
+                  onPress={() => setShowDeveloperModal(false)}
+                >
+                  <Text style={[styles.modalButtonText, { color: THEME.colors.text, fontSize: 16 }]} numberOfLines={1}>VAZGEÇ</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, { flex: 1, paddingHorizontal: 10 }]}
+                  onPress={() => {
+                    setShowDeveloperModal(false);
+                    Linking.openURL('https://play.google.com/store/apps/developer?id=Yusuf+Ulgen');
+                  }}
+                >
+                  <Text style={[styles.modalButtonText, { fontSize: 16 }]} numberOfLines={1}>GÖZ AT</Text>
+                </TouchableOpacity>
+              </View>
             </Animated.View>
           </View>
         </Modal>
@@ -615,6 +656,22 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.2)',
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  developerButton: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    zIndex: 100,
+    backgroundColor: THEME.colors.surface,
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   header: {
     paddingHorizontal: 20,
@@ -755,12 +812,12 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: THEME.colors.surface,
-    padding: 40,
+    padding: 25,
     borderRadius: 32,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
-    width: '80%',
+    width: '85%',
   },
   modalEmoji: {
     fontSize: 50,
@@ -771,6 +828,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: THEME.colors.text,
     marginBottom: 10,
+    textAlign: 'center',
   },
   modalSubtitle: {
     fontSize: 14,
@@ -785,12 +843,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 30,
     borderRadius: 16,
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 10,
   },
   modalButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+    textAlign: 'center',
   },
   nicknameInput: {
     width: '100%',
